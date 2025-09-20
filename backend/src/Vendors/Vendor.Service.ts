@@ -1,7 +1,7 @@
 import Vendor from "./Vendor.Model";
-export const createVendor = async (name:String, contactPerson:String, phone:String, email:String, address:String, gstin:String, paymentDays:Number, active:Boolean, notes:String) =>{
+export const createVendor = async (name:String, contactPerson:String, phone:String, email:String, address:String, gstin:String, paymentDays:Number, notes:String, status:String) =>{
     const result = await Vendor.create({
-        name, contactPerson, phone, email, address, gstin, paymentDays, active, notes
+        name, contactPerson, phone, email, address, gstin, paymentDays, notes,status
     });
     return result;
 }
@@ -13,7 +13,10 @@ export const getVendors = async ()=>{
 };
  
 export const getVendorById = async (id : String)=>{
-    const result = await Vendor.findById(id)
+    console.log(id);
+    
+    const result = await Vendor.findOne({ VendorId: id });
+
     return result;
 }
 

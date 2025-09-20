@@ -5,14 +5,15 @@ import { createVendor, getVendors, getVendorById, updateVendor,deleteVendor} fro
  
 export const createVendorController = async (req: Request, res: Response) => {
   try {
-    const { name, contactPerson, phone, email, address, gstin, paymentDays, active, notes } =
+    const { name, contactPerson, phone, email, address, gstin, paymentDays, active, notes,status } =
       req.body;
-
-    if(!name || !contactPerson || !phone|| !email|| !address|| !gstin|| !paymentDays|| !active|| !notes){
+    console.log(req.body);
+    
+    if(!name || !contactPerson || !phone|| !email|| !address|| !gstin|| !paymentDays|| !notes || !status){
       return res.status(400).json({ message: "Please fill all the fields" });
     }
     
-    const result  = await createVendor( name, contactPerson, phone, email, address, gstin, paymentDays, active, notes );
+    const result  = await createVendor( name, contactPerson, phone, email, address, gstin, paymentDays, notes, status );
  
     res.status(201).json({ message: "Vendor created successfully", result });
   } catch (error: any) {
@@ -45,10 +46,6 @@ export const getVendorsController = async (req: Request, res: Response) => {
  
 export const getVendorByIdController = async (req: Request, res: Response) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid vendor ID" });
-    }
-
    const result = await getVendorById(req.params.id)
 
     res.status(200).json(result);
