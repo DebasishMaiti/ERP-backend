@@ -25,7 +25,7 @@ import POOpen from "./pages/po/POOpen";
 import PODetail from "./pages/po/PODetail";
 import POReceipt from "./pages/po/POReceipt";
 
-// Items pages
+// Items 
 import ItemList from "./pages/items/ItemList";
 import ItemEdit from "./pages/items/ItemEdit";
 
