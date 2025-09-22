@@ -59,17 +59,15 @@ export const getVendorByIdController = async (req: Request, res: Response) => {
  
 export const updateVendorController = async (req: Request, res: Response) => {
   try {
-    const {id} = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid vendor ID" });
-    }
+    const {vendorId} = req.params;
+ 
       const { name, contactPerson, phone, email, address, gstin, paymentDays, active, notes } =
       req.body;
 
-    if(!name || !contactPerson || !phone|| !email|| !address|| !gstin|| !paymentDays|| !active|| !notes){
-      return res.status(400).json({ message: "Please fill all the fields" });
-    }   
-    const result = await updateVendor(name, contactPerson, phone, email, address, gstin, paymentDays, active, notes, id);
+    // if(!name || !contactPerson || !phone|| !email|| !address|| !paymentDays|| !active|| !notes){
+    //   return res.status(400).json({ message: "Please fill all the fields" });
+    // }   
+    const result = await updateVendor(name, contactPerson, phone, email, address, gstin, paymentDays, active, notes, vendorId);
     res.status(200).json(result);
   } catch (error: any) {
     res

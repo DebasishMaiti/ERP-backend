@@ -9,11 +9,11 @@ import {
 
 const router = Router();
 
+router.post("/", createItemController);
+router.get("/", getItemsController);
+router.get("/:itemId", getItemByIdController); 
+router.put("/:id", updateItemController); 
+router.patch("/:itemId", deleteItemController);  
  
-router.post("/", createItemController);          
-router.get("/", getItemsController);             
-router.get("/:id", getItemByIdController);       
-router.put("/:id", updateItemController);        
-router.patch("/:id", deleteItemController);     
 
 export default router;

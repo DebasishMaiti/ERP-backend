@@ -9,19 +9,22 @@ export const getItems = async () => {
   return await Item.find({ status: { $ne: "deleted" } });
 };
 
-export const getItemById = async (id: string) => {
-  return await Item.findById(id);
+export const getItemById = async (itemId: string) => {
+  return await Item.findOne({ itemId, status: { $ne: "deleted" } });
 };
  
 export const updateItem = async (id: string, name: string, unit: string, vendors: any[]) => {
-  const result = await Item.findByIdAndUpdate(
-    id,
+  return await Item.findByIdAndUpdate(
+     id ,
     { name, unit, vendors },
+    { new: true  }
+  );
+};
+ 
+export const deleteItem = async (itemId: string) => {
+  return await Item.findOneAndUpdate(
+    { itemId, status: { $ne: "deleted" } },
+    { status: "deleted" },
     { new: true }
   );
-  return result;
-};
-
-export const deleteItem = async (id: string) => {
-  return await Item.findByIdAndUpdate(id,{status:"deleted"});
 };

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Edit, Eye, Search, Filter, RotateCcw } from "lucide-react";
-import mockData from "@/data/mockData.json";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
@@ -23,20 +23,20 @@ const currentUser = {
     canRecordGRN: false,
     canApprove: false,
     canViewPrices: true,
-    // Employee: false, others: true
     canViewVendors: true,
-    // Employee: false, others: true
     canViewFinancials: true,
-    // Employee: false, others: true
     canManageItems: true,
-    // Only Purchaser/Admin: true
-    canCompareSelect: true
-  }
+    canCompareSelect: true,
+  },
 };
+
 export default function ItemList() {
   const navigate = useNavigate();
-  const items = mockData.items;
   const isMobile = useIsMobile();
+
+  // API state
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,6 +49,22 @@ export default function ItemList() {
 
   // For Employee role - hide pricing and vendor details
   const isEmployee = currentUser.role === "Employee";
+
+  // Fetch items from API
+  useEffect(() => {
+    const fetchItems = async () => {
+      try {
+        const res = await axios.get("http://localhost:8000/api/item");
+        setItems(res.data);
+      } catch (err) {
+        console.error("Error fetching items:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchItems();
+  }, []);
+
   const handleCreateItem = () => {
     navigate("/items/create");
   };
@@ -60,30 +76,42 @@ export default function ItemList() {
   };
 
   // Filter and sort items
-  const filteredItems = items.filter(item => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return item.name.toLowerCase().includes(query) || item.id.toLowerCase().includes(query) || item.unit.toLowerCase().includes(query);
-  }).sort((a, b) => {
-    switch (sortBy) {
-      case "name-asc":
-        return a.name.localeCompare(b.name);
-      case "name-desc":
-        return b.name.localeCompare(a.name);
-      case "unit-asc":
-        return a.unit.localeCompare(b.unit);
-      case "unit-desc":
-        return b.unit.localeCompare(a.unit);
-      default:
-        return 0;
-    }
-  });
+  const filteredItems = items
+    .filter((item) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        item.name.toLowerCase().includes(query) ||
+        item._id.toLowerCase().includes(query) ||
+        item.unit.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "name-asc":
+          return a.name.localeCompare(b.name);
+        case "name-desc":
+          return b.name.localeCompare(a.name);
+        case "unit-asc":
+          return a.unit.localeCompare(b.unit);
+        case "unit-desc":
+          return b.unit.localeCompare(a.unit);
+        default:
+          return 0;
+      }
+    });
+
   const clearFilters = () => {
     setSearchQuery("");
     setSortBy("name-asc");
   };
-  return <div>
-      
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading items...</div>;
+  }
+
+  return (
+    <div>
       <div className="container mx-auto px-4 py-6">
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
@@ -91,11 +119,17 @@ export default function ItemList() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search items by name, ID, or unit..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9" />
+              <Input
+                placeholder="Search items by name, ID, or unit..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-            
+
             {/* Mobile Filter Button */}
-            {isMobile && <Sheet>
+            {isMobile && (
+              <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" size="icon">
                     <Filter className="h-4 w-4" />
@@ -123,92 +157,130 @@ export default function ItemList() {
                     </div>
 
                     {/* Clear Filters */}
-                    {(searchQuery || sortBy !== "name-asc") && <Button variant="ghost" onClick={clearFilters} className="w-full">
+                    {(searchQuery || sortBy !== "name-asc") && (
+                      <Button variant="ghost" onClick={clearFilters} className="w-full">
                         <RotateCcw className="h-4 w-4 mr-2" />
                         Clear Filters
-                      </Button>}
+                      </Button>
+                    )}
                   </div>
                 </SheetContent>
-              </Sheet>}
+              </Sheet>
+            )}
           </div>
 
-          {/* Desktop Filter Controls - Single Line */}
-          {!isMobile}
-
           {/* Clear Filters Button for Desktop */}
-          {!isMobile && (searchQuery || sortBy !== "name-asc") && <div className="flex justify-end">
+          {!isMobile && (searchQuery || sortBy !== "name-asc") && (
+            <div className="flex justify-end">
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Clear Filters
               </Button>
-            </div>}
-
-          {/* Actions */}
-          <div className="flex justify-between items-center">
-            <div>
-              
-              {/* <p className="text-muted-foreground">{filteredItems.length} items {filteredItems.length !== items.length && `of ${items.length} total`}</p> */}
             </div>
-            {canManageItems}
-          </div>
+          )}
+
+ 
         </div>
 
-        {filteredItems.length === 0 ? <Card>
+        {filteredItems.length === 0 ? (
+          <Card>
             <CardContent className="text-center py-12">
-              {items.length === 0 ? <>
+              {items.length === 0 ? (
+                <>
                   <h3 className="text-lg font-medium mb-2">No items found</h3>
                   <p className="text-muted-foreground mb-4">Get started by adding your first item</p>
-                  {canManageItems && <Button onClick={handleCreateItem}>
+                  {canManageItems && (
+                    <Button onClick={handleCreateItem}>
                       <Plus className="h-4 w-4 mr-2" />
                       Add First Item
-                    </Button>}
-                </> : <>
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
                   <h3 className="text-lg font-medium mb-2">No items match your search</h3>
                   <p className="text-muted-foreground mb-4">Try adjusting your search criteria</p>
                   <Button variant="outline" onClick={clearFilters}>
                     Clear Filters
                   </Button>
-                </>}
+                </>
+              )}
             </CardContent>
-          </Card> : isMobile ? <div className="grid gap-3">
-            {filteredItems.map(item => <Card key={item.id}>
+          </Card>
+        ) : isMobile ? (
+          <div className="grid gap-3">
+            {filteredItems.map((item) => (
+              <Card key={item._id}>
                 <CardContent className="p-3">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <div className="text-lg font-medium">{item.name}</div>
                       <p className="text-muted-foreground">Unit: {item.unit}</p>
-                      <p className="text-sm text-muted-foreground">ID: {item.id}</p>
-                      {canViewVendors && !isEmployee && <p className="text-sm text-muted-foreground">Last Updated: {item.lastUpdated}</p>}
+                      <p className="text-sm text-muted-foreground">ID: {item._id}</p>
+                      {canViewVendors && !isEmployee && (
+                        <p className="text-sm text-muted-foreground">
+                          Last Updated: {new Date(item.updatedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-col gap-1">
-                      {canViewVendors && !isEmployee && <Badge variant="outline">{item.vendors.length} Vendors</Badge>}
+                      {canViewVendors && !isEmployee && (
+                        <Badge variant="outline">{item.vendors.length} Vendors</Badge>
+                      )}
                       <div className="flex gap-1">
-                        {canManageItems ? <Button size="sm" variant="outline" onClick={() => handleEditItem(item.id)}>
+                        {canManageItems ? (
+                          <Button size="sm" variant="outline" onClick={() => handleEditItem(item._id)}>
                             <Edit className="h-3 w-3" />
-                          </Button> : <Button size="sm" variant="outline" onClick={() => handleViewItem(item.id)}>
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => handleViewItem(item._id)}>
                             <Eye className="h-3 w-3" />
-                          </Button>}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
-                  {canViewVendors && canViewPrices && !isEmployee && <div className="space-y-2">
+                  {canViewVendors && canViewPrices && !isEmployee && (
+                    <div className="space-y-2">
                       <div className="text-sm font-medium">Vendor Prices:</div>
-                      {item.vendors.length === 0 ? <p className="text-muted-foreground text-sm">No vendor prices configured</p> : item.vendors.map((vendor, index) => <div key={index} className="flex justify-between items-center p-2 bg-secondary rounded">
+                      {item.vendors.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">No vendor prices configured</p>
+                      ) : (
+                        item.vendors.map((vendor: any, index: number) => (
+                          <div
+                            key={index}
+                            className="flex justify-between items-center p-2 bg-secondary rounded"
+                          >
                             <div>
-                              <span className="font-medium">{vendor.vendor}</span>
-                              <span className={`ml-2 text-xs px-2 py-1 rounded ${vendor.active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>
-                                {vendor.active ? 'Active' : 'Inactive'}
+                              <span className="font-medium">
+                                {vendor.vendor?.name || "Unnamed Vendor"}
+                              </span>
+                              <span
+                                className={`ml-2 text-xs px-2 py-1 rounded ${
+                                  vendor.status === "active"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                    : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                                }`}
+                              >
+                                {vendor.status === "active" ? "Active" : "Inactive"}
                               </span>
                             </div>
                             <div className="text-right">
-                              <div className="font-semibold">₹{vendor.price.toLocaleString()}/{item.unit}</div>
-                              
+                              <div className="font-semibold">
+                                ₹{vendor.pricePerUnit.toLocaleString()}/{item.unit}
+                              </div>
                             </div>
-                          </div>)}
-                    </div>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </CardContent>
-              </Card>)}
-          </div> : <div className="rounded-md border bg-white">
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border bg-white">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -222,39 +294,60 @@ export default function ItemList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map(item => {
-              const activePrices = item.vendors.filter(v => v.active).map(v => v.price);
-              const minPrice = activePrices.length > 0 ? Math.min(...activePrices) : 0;
-              const maxPrice = activePrices.length > 0 ? Math.max(...activePrices) : 0;
-              return <TableRow key={item.id}>
+                {filteredItems.map((item) => {
+                  const activePrices =
+                    item.vendors?.filter((v: any) => v.status === "active").map((v: any) => v.pricePerUnit) || [];
+                  const minPrice = activePrices.length > 0 ? Math.min(...activePrices) : 0;
+                  const maxPrice = activePrices.length > 0 ? Math.max(...activePrices) : 0;
+                  return (
+                    <TableRow key={item._id}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.unit}</TableCell>
-                      {canViewVendors && !isEmployee && <TableCell>
+                      {canViewVendors && !isEmployee && (
+                        <TableCell>
                           <Badge variant="outline">
-                            {item.vendors.length} Vendor{item.vendors.length !== 1 ? 's' : ''}
+                            {item.vendors.length} Vendor{item.vendors.length !== 1 ? "s" : ""}
                           </Badge>
-                        </TableCell>}
-                      {canViewPrices && !isEmployee && <TableCell className="font-semibold">
-                          {activePrices.length > 0 ? `₹${minPrice.toLocaleString()}/${item.unit}` : 'No prices'}
-                        </TableCell>}
-                      {canViewPrices && !isEmployee && <TableCell>
-                          {activePrices.length > 1 ? `₹${minPrice.toLocaleString()} - ₹${maxPrice.toLocaleString()}` : activePrices.length === 1 ? `₹${minPrice.toLocaleString()}` : 'N/A'}
-                        </TableCell>}
-                      {canViewVendors && !isEmployee && <TableCell>{item.lastUpdated}</TableCell>}
+                        </TableCell>
+                      )}
+                      {canViewPrices && !isEmployee && (
+                        <TableCell className="font-semibold">
+                          {activePrices.length > 0 ? `₹${minPrice.toLocaleString()}/${item.unit}` : "No prices"}
+                        </TableCell>
+                      )}
+                      {canViewPrices && !isEmployee && (
+                        <TableCell>
+                          {activePrices.length > 1
+                            ? `₹${minPrice.toLocaleString()} - ₹${maxPrice.toLocaleString()}`
+                            : activePrices.length === 1
+                            ? `₹${minPrice.toLocaleString()}`
+                            : "N/A"}
+                        </TableCell>
+                      )}
+                      {canViewVendors && !isEmployee && (
+                        <TableCell>{new Date(item.updatedAt).toLocaleDateString()}</TableCell>
+                      )}
                       <TableCell>
-                        {canManageItems ? <Button size="sm" variant="outline" onClick={() => handleEditItem(item.id)}>
+                        {canManageItems ? (
+                          <Button size="sm" variant="outline" onClick={() => handleEditItem(item.itemId)}>
                             <Edit className="h-3 w-3 mr-1" />
                             Edit
-                          </Button> : <Button size="sm" variant="outline" onClick={() => handleViewItem(item.id)}>
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => handleViewItem(item._id)}>
                             <Eye className="h-3 w-3 mr-1" />
                             View
-                          </Button>}
+                          </Button>
+                        )}
                       </TableCell>
-                    </TableRow>;
-            })}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
-          </div>}
+          </div>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 }
