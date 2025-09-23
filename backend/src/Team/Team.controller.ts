@@ -8,7 +8,7 @@ export const createTeamController = async (req: Request, res: Response) => {
   try {
     const { name, email, phone, status, notes, permissions } = req.body;
 
-    if (!name || !email || !phone || !status || !notes || !permissions) {
+    if (!name || !email || !phone || !status || !permissions) {
       return res.status(400).json({ message: "Please fill all required fields" });
     }
 

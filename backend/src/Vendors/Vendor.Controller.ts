@@ -59,7 +59,7 @@ export const getVendorByIdController = async (req: Request, res: Response) => {
  
 export const updateVendorController = async (req: Request, res: Response) => {
   try {
-    const {vendorId} = req.params;
+    const {id} = req.params;
  
       const { name, contactPerson, phone, email, address, gstin, paymentDays, active, notes } =
       req.body;
@@ -67,7 +67,7 @@ export const updateVendorController = async (req: Request, res: Response) => {
     // if(!name || !contactPerson || !phone|| !email|| !address|| !paymentDays|| !active|| !notes){
     //   return res.status(400).json({ message: "Please fill all the fields" });
     // }   
-    const result = await updateVendor(name, contactPerson, phone, email, address, gstin, paymentDays, active, notes, vendorId);
+    const result = await updateVendor(name, contactPerson, phone, email, address, gstin, paymentDays, active, notes, id);
     res.status(200).json(result);
   } catch (error: any) {
     res

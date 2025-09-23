@@ -13,16 +13,14 @@ export const getVendors = async ()=>{
 };
  
 export const getVendorById = async (id : String)=>{
-    console.log(id);
+    const result = await Vendor.findOne({ vendorId: id });
     
-    const result = await Vendor.findOne({ VendorId: id });
-
     return result;
 }
 
 export const updateVendor = async (name:String, contactPerson:String, phone:String, email:String, address:String, gstin:String, paymentDays:Number, active:Boolean, notes:String, id:string)=>{
     console.log(id);
-    const result = await Vendor.findByIdAndUpdate(id,{
+    const result = await Vendor.findOneAndUpdate({vendorId:id},{
         name, contactPerson, phone, email, address, gstin, paymentDays, active, notes
     });
     return result;

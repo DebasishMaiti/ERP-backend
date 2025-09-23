@@ -96,20 +96,56 @@ export default function TeamEdit() {
   });
   const selectedStatus = form.watch("status");
   const currentStatus = existingMember?.status || "Active";
-  const onSubmit = (data: FormData) => {
-    const memberData = {
-      ...data,
-      permissions
-    };
-    console.log("Form submitted:", memberData);
-    toast({
-      title: isCreateMode ? "Member added successfully" : "Member updated successfully",
-      description: isCreateMode ? "New team member has been added to the system with custom permissions" : "Team member information and permissions have been updated"
+const onSubmit = async (data: FormData) => {
+  const memberData = {
+    ...data,
+    permissions,
+  };
+
+  try {
+    const url = isCreateMode
+      ? "http://localhost:8000/api/team"
+      : `http://localhost:8000/api/team/${memberId}`;
+
+    const method = isCreateMode ? "POST" : "PUT";
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(memberData),
     });
 
-    // In real app, this would save to backend
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.message || "Something went wrong");
+    }
+
+    const result = await res.json();
+
+    toast({
+      title: isCreateMode
+        ? "Member added successfully"
+        : "Member updated successfully",
+      description: isCreateMode
+        ? "New team member has been added to the system with custom permissions"
+        : "Team member information and permissions have been updated",
+    });
+
+    console.log("API Response:", result);
+
     navigate("/team/list");
-  };
+  } catch (error: any) {
+    console.error("API Error:", error.message);
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive",
+    });
+  }
+};
+
   const getRoleDescription = () => {
     // Since roles are removed, return permissions-based description
     const projectCount = permissions.projects.length;

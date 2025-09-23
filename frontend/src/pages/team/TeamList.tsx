@@ -1,6 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +11,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import mockData from "@/data/mockData.json";
+//import mockData from "@/data/mockData.json";
 import { Search, Filter, Plus, Eye, Edit, MoreVertical, Power, PowerOff, RotateCcw, Mail } from "lucide-react";
+import axios from "axios";
 
 export default function TeamList() {
   const navigate = useNavigate();
@@ -24,10 +24,34 @@ export default function TeamList() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("name");
 
-  const teamMembers = mockData.teamMembers;
+  const [teamMembers, setTeamMembers] = useState([]);
+const [loading, setLoading] = useState(true);
+
+
+  //const teamMembers = mockData.teamMembers;
   
-  // Current user role for permissions
-  const currentUserRole = "Admin"; // This would come from auth context
+ useEffect(() => {
+  const fetchTeam = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get("http://localhost:8000/api/team");
+
+      // Backend returns array directly, not inside res.data.result
+      setTeamMembers(res.data);
+      console.log(res.data);
+      
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Error", description: "Failed to fetch team members" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchTeam();
+}, [toast]);
+
+  const currentUserRole = "Admin";  
   const canManageTeam = currentUserRole === "Admin";
   const canViewDetails = ["Admin", "Purchaser"].includes(currentUserRole);
 
@@ -249,7 +273,7 @@ export default function TeamList() {
             {/* Mobile Cards */}
             <div className="space-y-4">
               {filteredAndSortedMembers.map((member) => (
-                <Card key={member.id} className="shadow-card">
+                <Card key={member._id} className="shadow-card">
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -262,11 +286,11 @@ export default function TeamList() {
                         <Badge variant={member.status === "Active" ? "default" : "destructive"}>
                           {member.status}
                         </Badge>
-                        {member.permissions && (
+                        {/* {member.permissions && (
                           <span className="text-xs text-muted-foreground">
                             {member.permissions.projects.length} projects
                           </span>
-                        )}
+                        )} */}
                       </div>
                     </div>
                   </CardHeader>
@@ -349,11 +373,11 @@ export default function TeamList() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Badge variant={getAccessColor(member)}>{getAccessLevel(member)}</Badge>
-                          {member.permissions && (
+                          {/* {member.permissions && (
                             <span className="text-xs text-muted-foreground">
                               ({member.permissions.projects.length} projects)
                             </span>
-                          )}
+                          )} */}
                         </div>
                       </TableCell>
                       <TableCell>

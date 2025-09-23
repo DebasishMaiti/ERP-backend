@@ -11,7 +11,7 @@ const router = Router();
 
 router.post("/", createVendorController);       
 router.get("/", getVendorsController);          
-router.get("/:vendorId", getVendorByIdController);    
+router.get("/:id", getVendorByIdController);    
 router.put("/:id", updateVendorController);     
 router.delete("/:id", deleteVendorController);  
 

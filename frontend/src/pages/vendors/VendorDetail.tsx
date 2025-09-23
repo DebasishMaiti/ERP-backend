@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
@@ -85,6 +84,7 @@ export default function VendorDetail() {
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Check permissions
   const isEmployee = currentUser.role === "Employee";
@@ -293,15 +293,54 @@ export default function VendorDetail() {
     setHasUnsavedChanges(true);
   };
 
-  const saveVendorChanges = () => {
-    if (!vendorData) return;
-    setVendor(vendorData);
-    setEditingVendor(false);
-    setHasUnsavedChanges(false);
-    toast({
-      title: "Vendor Updated",
-      description: "Vendor information has been saved successfully.",
-    });
+  // API call to update vendor
+  const saveVendorChanges = async () => {
+    if (!vendorData || !id) return;
+    
+    setIsSaving(true);
+    try {
+      // Prepare the data for the API call
+      const updateData = {
+        name: vendorData.name,
+        contactPerson: vendorData.contact,
+        phone: vendorData.phone,
+        email: vendorData.email,
+        address: vendorData.address,
+        status: vendorData.status,
+        gstin: vendorData.gstin,
+        // Add other fields that your API expects
+      };
+
+      const response = await axios.put(`http://localhost:8000/api/vendor/${id}`, updateData, {
+        headers: {
+          "Content-Type": "application/json",
+          // Add authentication header if needed
+          // Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 200) {
+        setVendor(vendorData);
+        setEditingVendor(false);
+        setHasUnsavedChanges(false);
+        
+        toast({
+          title: "Vendor Updated",
+          description: "Vendor information has been saved successfully.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error updating vendor:", error);
+      const errorMessage = error.response?.data?.error || error.message || "Failed to update vendor";
+      
+      toast({
+        title: "Update Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const cancelVendorChanges = () => {
@@ -370,6 +409,7 @@ export default function VendorDetail() {
                 variant="outline"
                 size="sm"
                 onClick={() => editingVendor ? cancelVendorChanges() : setEditingVendor(true)}
+                disabled={isSaving}
               >
                 {editingVendor ? <X className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
                 {editingVendor ? "Cancel" : "Edit"}
@@ -481,11 +521,11 @@ export default function VendorDetail() {
 
             {editingVendor && canEdit && (
               <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button variant="outline" onClick={cancelVendorChanges}>
+                <Button variant="outline" onClick={cancelVendorChanges} disabled={isSaving}>
                   Cancel
                 </Button>
-                <Button onClick={saveVendorChanges}>
-                  Save Changes
+                <Button onClick={saveVendorChanges} disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             )}

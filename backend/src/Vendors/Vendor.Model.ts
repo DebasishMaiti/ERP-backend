@@ -12,7 +12,7 @@ const VendorSchema = new Schema(
     paymentDays: { type: Number, required: true, min: 0 },
    
     notes: { type: String },
-    status: { type: String, enum: ["active","inactive","blocked","deleted"], default: "active" },
+    status: { type: String, enum: ["Active","Inactive","blocked","deleted"], default: "active" },
   },
   { timestamps: true }
 );

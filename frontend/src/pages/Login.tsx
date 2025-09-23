@@ -24,7 +24,7 @@ const Login= () => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate API call
+ 
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     console.log('Login attempted with:', formData);
