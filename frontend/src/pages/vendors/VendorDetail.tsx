@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import axios from "axios";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "@/store/store";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +15,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Search, Filter, ArrowUpDown, Save, RotateCcw, Trash2, AlertTriangle, Edit, Check, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import mockData from "@/data/mockData.json";
 
-// Mock current user role - in real app this would come from auth context
+// Import Redux actions
+import { getVendorById, updateVendor } from "@/store/vendorSlice";
+ 
 const currentUser = {
   role: "Purchaser",
   permissions: {
@@ -72,8 +74,12 @@ export default function VendorDetail() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const dispatch = useDispatch<AppDispatch>();
 
-  const [vendor, setVendor] = useState<Vendor | null>(null);
+  // Redux selectors
+  const { selectedVendor, isLoading, error } = useSelector((state: RootState) => state.vendor);
+  const globalLoading = useSelector((state: RootState) => state.loader.isLoading);
+
   const [vendorItems, setVendorItems] = useState<VendorItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -82,17 +88,14 @@ export default function VendorDetail() {
   const [editingItems, setEditingItems] = useState<EditingState>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [vendorData, setVendorData] = useState<Vendor | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Check permissions
   const isEmployee = currentUser.role === "Employee";
-  const isAccountant = currentUser.role === "Accountant";
   const canEdit = currentUser.role === "Purchaser" || currentUser.role === "Admin";
   const canViewPrices = currentUser.permissions.canViewPrices;
 
-  // Fetch vendor data from API
+  // Fetch vendor data using Redux thunk
   useEffect(() => {
     if (!id || isEmployee) {
       if (isEmployee) {
@@ -106,75 +109,69 @@ export default function VendorDetail() {
       return;
     }
 
-    const fetchVendor = async () => {
-      setIsLoading(true);
-      try {
-        const response = await axios.get(`http://localhost:8000/api/vendor/${id}`, {
-          headers: {
-            "Content-Type": "application/json",
-            // Add authentication header if needed, e.g.:
-            // Authorization: `Bearer ${token}`,
-          },
-        });
+    dispatch(getVendorById(id));
+  }, [id, isEmployee, navigate, toast, dispatch]);
 
-        const vendorData = response.data;
-        const mappedVendor: Vendor = {
-          id: vendorData.vendorId,
-          name: vendorData.name,
-          contact: vendorData.contactPerson,
-          phone: vendorData.phone,
-          email: vendorData.email,
-          address: vendorData.address,
-          status: vendorData.status,
-          outstandingBalance: vendorData.outstandingBalance || 0,
-          createdDate: vendorData.createdAt,
-          lastUpdated: vendorData.updatedAt,
-          gstin: vendorData.gstin,
-          taxId: vendorData.gstin,
-        };
-
-        setVendor(mappedVendor);
-        setVendorData(mappedVendor);
-        setError(null);
-
-        // Find all items supplied by this vendor (using mock data)
-        const items: VendorItem[] = [];
-        mockData.items.forEach(item => {
-          const vendorInfo = item.vendors.find(v => v.vendor === mappedVendor.name);
-          if (vendorInfo) {
-            items.push({
-              itemId: item.id,
-              itemName: item.name,
-              unit: item.unit,
-              price: vendorInfo.price,
-              moq: vendorInfo.moq,
-              active: vendorInfo.active,
-              notes: vendorInfo.notes || "",
-              lastUpdated: item.lastUpdated,
-              lastUpdatedBy: "Admin"
-            });
-          }
-        });
-        setVendorItems(items);
-      } catch (error: any) {
-        console.error("Error fetching vendor:", error);
-        const errorMessage = error.response?.data?.error || error.message || "Failed to fetch vendor";
-        setError(errorMessage);
-        toast({
-          title: "Vendor Not Found",
-          description: errorMessage,
-          variant: "destructive",
-        });
-        navigate("/vendors/list");
-      } finally {
-        setIsLoading(false);
-      }
+  console.log(selectedVendor);
+  
+ 
+useEffect(() => {
+  if (selectedVendor) {
+    const vendorResult = selectedVendor.result;
+    
+    const mappedVendor: Vendor = {
+      id: vendorResult.vendorId, // Use vendorId directly from result
+      name: vendorResult.name,
+      contact: vendorResult.contactPerson,
+      phone: vendorResult.phone,
+      email: vendorResult.email,
+      address: vendorResult.address,
+      status: vendorResult.status,
+      outstandingBalance: vendorResult.outstandingBalance || 0, // Default to 0 if missing
+      createdDate: vendorResult.createdAt,
+      lastUpdated: vendorResult.updatedAt,
+      gstin: vendorResult.gstin,
+      taxId: vendorResult.gstin, // Using gstin for taxId as it's not in response
     };
 
-    fetchVendor();
-  }, [id, isEmployee, navigate, toast]);
+    setVendorData(mappedVendor);
 
-  // Filter and sort items
+    // Extract vendor items from the response
+    const items: VendorItem[] = [];
+    if (selectedVendor.item) {
+      selectedVendor.item.forEach((item: any) => {
+        const vendorInfo = item.vendors.find((v: any) => v.vendor === vendorResult._id);
+        if (vendorInfo) {
+          items.push({
+            itemId: item.itemId,                   
+            itemName: item.name,
+            unit: item.unit,
+            price: vendorInfo.pricePerUnit,    
+            moq: vendorInfo.moq || 0, // Default to 0 if missing
+            active: vendorInfo.status === "active",
+            notes: vendorInfo.notes || "",
+            lastUpdated: item.updatedAt,       
+            lastUpdatedBy: vendorInfo.lastUpdatedBy || "System", // Default value
+          });
+        }
+      });
+    }
+    setVendorItems(items);
+  }
+}, [selectedVendor]);
+
+  // Handle errors from Redux
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+      navigate("/vendors/list");
+    }
+  }, [error, toast, navigate]);
+
   const filteredAndSortedItems = useMemo(() => {
     let filtered = vendorItems.filter(item => {
       const matchesSearch = item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -293,7 +290,7 @@ export default function VendorDetail() {
     setHasUnsavedChanges(true);
   };
 
-  // API call to update vendor
+  // Update vendor using Redux thunk
   const saveVendorChanges = async () => {
     if (!vendorData || !id) return;
     
@@ -308,30 +305,22 @@ export default function VendorDetail() {
         address: vendorData.address,
         status: vendorData.status,
         gstin: vendorData.gstin,
-        // Add other fields that your API expects
       };
 
-      const response = await axios.put(`http://localhost:8000/api/vendor/${id}`, updateData, {
-        headers: {
-          "Content-Type": "application/json",
-          // Add authentication header if needed
-          // Authorization: `Bearer ${token}`,
-        },
+      // Dispatch the update thunk
+      await dispatch(updateVendor(id, updateData ))
+      
+      // If successful, the Redux state will be updated automatically
+      setEditingVendor(false);
+      setHasUnsavedChanges(false);
+      
+      toast({
+        title: "Vendor Updated",
+        description: "Vendor information has been saved successfully.",
       });
-
-      if (response.status === 200) {
-        setVendor(vendorData);
-        setEditingVendor(false);
-        setHasUnsavedChanges(false);
-        
-        toast({
-          title: "Vendor Updated",
-          description: "Vendor information has been saved successfully.",
-        });
-      }
     } catch (error: any) {
       console.error("Error updating vendor:", error);
-      const errorMessage = error.response?.data?.error || error.message || "Failed to update vendor";
+      const errorMessage = error?.message || "Failed to update vendor";
       
       toast({
         title: "Update Failed",
@@ -343,13 +332,32 @@ export default function VendorDetail() {
     }
   };
 
-  const cancelVendorChanges = () => {
-    setVendorData(vendor);
-    setEditingVendor(false);
-    setHasUnsavedChanges(false);
-  };
+const cancelVendorChanges = () => {
+  // Reset to the original vendor data from Redux
+  if (selectedVendor) {
+    const vendorResult = selectedVendor.result;
+    
+    const mappedVendor: Vendor = {
+      id: vendorResult.vendorId,
+      name: vendorResult.name,
+      contact: vendorResult.contactPerson,
+      phone: vendorResult.phone,
+      email: vendorResult.email,
+      address: vendorResult.address,
+      status: vendorResult.status,
+      outstandingBalance: vendorResult.outstandingBalance || 0,
+      createdDate: vendorResult.createdAt,
+      lastUpdated: vendorResult.updatedAt,
+      gstin: vendorResult.gstin,
+      taxId: vendorResult.gstin,
+    };
+    setVendorData(mappedVendor);
+  }
+  setEditingVendor(false);
+  setHasUnsavedChanges(false);
+};
 
-  if (isLoading) {
+  if (isLoading || globalLoading) {
     return (
       <div>
         <div className="container mx-auto px-4 py-6">
@@ -363,7 +371,7 @@ export default function VendorDetail() {
     );
   }
 
-  if (error || !vendor) {
+  if (error || !selectedVendor) {
     return (
       <div>
         <div className="container mx-auto px-4 py-6">
@@ -434,8 +442,8 @@ export default function VendorDetail() {
                   </Select>
                 ) : (
                   <div className="mt-1">
-                    <Badge variant={vendor.status === "active" ? "default" : vendor.status === "inactive" ? "secondary" : "destructive"}>
-                      {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
+                    <Badge variant={vendorData?.status === "active" ? "default" : vendorData?.status === "inactive" ? "secondary" : "destructive"}>
+                      {vendorData?.status ? vendorData.status.charAt(0).toUpperCase() + vendorData.status.slice(1) : "Unknown"}
                     </Badge>
                   </div>
                 )}
@@ -451,7 +459,7 @@ export default function VendorDetail() {
                     className="mt-1"
                   />
                 ) : (
-                  <p className="mt-1 font-medium">{vendor.contact}</p>
+                  <p className="mt-1 font-medium">{vendorData?.contact}</p>
                 )}
               </div>
 
@@ -465,7 +473,7 @@ export default function VendorDetail() {
                     className="mt-1"
                   />
                 ) : (
-                  <p className="mt-1 font-medium">{vendor.phone}</p>
+                  <p className="mt-1 font-medium">{vendorData?.phone}</p>
                 )}
               </div>
 
@@ -479,7 +487,7 @@ export default function VendorDetail() {
                     className="mt-1"
                   />
                 ) : (
-                  <p className="mt-1 font-medium">{vendor.email}</p>
+                  <p className="mt-1 font-medium">{vendorData?.email}</p>
                 )}
               </div>
 
@@ -494,7 +502,7 @@ export default function VendorDetail() {
                     rows={2}
                   />
                 ) : (
-                  <p className="mt-1 font-medium">{vendor.address}</p>
+                  <p className="mt-1 font-medium">{vendorData?.address}</p>
                 )}
               </div>
             </div>
@@ -503,19 +511,19 @@ export default function VendorDetail() {
               {/* Outstanding Balance */}
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Outstanding Balance</label>
-                <p className="mt-1 text-lg font-bold text-primary">₹{vendor.outstandingBalance.toLocaleString('en-IN')}</p>
+                <p className="mt-1 text-lg font-bold text-primary">₹{vendorData?.outstandingBalance?.toLocaleString('en-IN') || 0}</p>
               </div>
 
               {/* Created Date */}
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Created Date</label>
-                <p className="mt-1 font-medium">{new Date(vendor.createdDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                <p className="mt-1 font-medium">{vendorData?.createdDate ? new Date(vendorData.createdDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown'}</p>
               </div>
 
               {/* Last Updated */}
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
-                <p className="mt-1 font-medium">{vendor.lastUpdated ? new Date(vendor.lastUpdated).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not updated'}</p>
+                <p className="mt-1 font-medium">{vendorData?.lastUpdated ? new Date(vendorData.lastUpdated).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not updated'}</p>
               </div>
             </div>
 

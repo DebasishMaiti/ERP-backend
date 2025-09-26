@@ -1,655 +1,383 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { Save, X, Plus, Trash2, UserPlus, AlertTriangle } from "lucide-react";
+import { PermissionsManager } from "@/components/PermissionsManager";
 import mockData from "@/data/mockData.json";
-
-// Mock current user role - in real app this would come from auth context
-const currentUser = {
-  id: "TM-002",
-  name: "Jane Smith",
-  role: "Admin", // Employee, Purchaser, Admin, Accountant
-  permissions: {
-    canManageProjects: true, // Admin/Purchaser: true, others: false
-    canAssignTeam: true // Admin only: true
-  }
-};
-
-interface ProjectTeamMember {
-  id: string;
-  name: string;
-  systemRole: string;
-  assignedDate: string;
+import { ArrowLeft, RotateCcw, Power, PowerOff, Mail } from "lucide-react";
+const formSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  phone: z.string().optional(),
+  status: z.enum(["Active", "Inactive"]),
+  notes: z.string().optional()
+});
+type FormData = z.infer<typeof formSchema>;
+interface ModulePermission {
+  read: boolean;
+  write: boolean;
 }
-
-interface ProjectData {
-  id: string;
-  name: string;
-  code: string;
-  location: string;
-  startDate: string;
-  targetCompletionDate: string;
-  status: string;
-  notes: string;
-  teamMembers: ProjectTeamMember[];
-}
-
-const statusOptions = ["Planned", "In Progress", "On Hold", "Completed"];
-
-export default function ProjectEdit() {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const isMobile = useIsMobile();
-  const [searchParams] = useSearchParams();
-  const projectId = searchParams.get("id");
-  const mode = searchParams.get("mode");
-  const isEdit = !!projectId;
-  const isReadOnly = mode === "view" || !currentUser.permissions.canManageProjects;
-
-  // Find existing project or create new
-  const existingProject = isEdit ? mockData.projects.find(p => p.id === projectId) : null;
-
-  const [projectData, setProjectData] = useState<ProjectData>(() => ({
-    id: existingProject?.id || "",
-    name: existingProject?.name || "",
-    code: existingProject ? `PRJ-${existingProject.id.padStart(4, '0')}` : "",
-    location: existingProject?.location || "",
-    startDate: existingProject?.startDate || "",
-    targetCompletionDate: existingProject?.endDate || "",
-    status: existingProject?.status || "Planned",
-    notes: existingProject?.description || "",
-    teamMembers: [] // In real app, this would come from project team data
-  }));
-
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isAddingMember, setIsAddingMember] = useState(false);
-  const [selectedMember, setSelectedMember] = useState("");
-
-  // Check permissions
-  if (isReadOnly && mode !== "view") {
-    return (
-      <div>
-        <div className="container mx-auto px-4 py-6">
-          <Card>
-            <CardContent className="text-center py-8">
-              <p className="text-muted-foreground">Only Admins and Purchasers can manage projects.</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Get available non-admin members not already assigned
-  const availableMembers = mockData.teamMembers.filter(member => 
-    !member.isAdmin && !projectData.teamMembers.some(pm => pm.id === member.id)
-  );
-
-  const updateProjectField = useCallback((field: keyof ProjectData, value: any) => {
-    setProjectData(prev => ({ ...prev, [field]: value }));
-    setHasUnsavedChanges(true);
-  }, []);
-
-  const addTeamMember = useCallback(() => {
-    console.log('addTeamMember called', { selectedMember });
-    if (!selectedMember) {
-      toast({
-        title: "Validation Error",
-        description: "Please select a team member",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const member = mockData.teamMembers.find(m => m.id === selectedMember);
-    if (!member) return;
-
-    const newTeamMember: ProjectTeamMember = {
-      id: member.id,
-      name: member.name,
-      systemRole: member.isAdmin ? "Admin" : "Team Member",
-      assignedDate: new Date().toISOString().split('T')[0]
-    };
-
-    setProjectData(prev => ({
-      ...prev,
-      teamMembers: [...prev.teamMembers, newTeamMember]
-    }));
-
-    setSelectedMember("");
-    setIsAddingMember(false);
-    setHasUnsavedChanges(true);
-
-    toast({
-      title: "Success",
-      description: `${member.name} assigned to project`
-    });
-  }, [selectedMember, toast]);
-
-  const removeTeamMember = useCallback((memberId: string) => {
-    const member = projectData.teamMembers.find(m => m.id === memberId);
-    setProjectData(prev => ({
-      ...prev,
-      teamMembers: prev.teamMembers.filter(m => m.id !== memberId)
-    }));
-    setHasUnsavedChanges(true);
-    
-    toast({
-      title: "Success",
-      description: `${member?.name} removed from project`
-    });
-  }, [projectData.teamMembers, toast]);
-
-
-  const validateForm = () => {
-    const errors: string[] = [];
-
-    if (!projectData.name.trim()) {
-      errors.push("Project name is required");
-    }
-
-    if (!projectData.code.trim()) {
-      errors.push("Project code is required");
-    }
-
-    // Check for duplicate project code
-    const isDuplicate = mockData.projects.some(p => 
-      p.id !== projectData.id && `PRJ-${p.id.padStart(4, '0')}` === projectData.code
-    );
-    
-    if (isDuplicate) {
-      errors.push("A project with this code already exists");
-    }
-
-    // Validate dates
-    if (projectData.startDate && projectData.targetCompletionDate) {
-      if (new Date(projectData.startDate) > new Date(projectData.targetCompletionDate)) {
-        errors.push("Start date cannot be after target completion date");
-      }
-    }
-
-    return errors;
+interface Permissions {
+  projects: string[];
+  modules: {
+    [key: string]: ModulePermission;
   };
+}
+export default function TeamEdit() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const {
+    toast
+  } = useToast();
+  const memberId = searchParams.get("id");
+  const isViewMode = searchParams.get("mode") === "view";
+  const isEditMode = !!memberId && !isViewMode;
+  const isCreateMode = !memberId;
 
-  const saveProject = useCallback(() => {
-    const errors = validateForm();
-    if (errors.length > 0) {
-      toast({
-        title: "Validation Error",
-        description: errors[0],
-        variant: "destructive"
-      });
-      return;
-    }
+  // Current user role for permissions
+  const currentUserRole = "Admin"; // This would come from auth context
+  const canEdit = currentUserRole === "Admin" && !isViewMode;
 
-    // In real app, this would save to backend
-    toast({
-      title: "Success",
-      description: `Project ${isEdit ? 'updated' : 'created'} successfully`
-    });
-    setHasUnsavedChanges(false);
-  }, [projectData, isEdit, toast]);
+  // Find existing member data
+  const existingMember = memberId ? mockData.teamMembers.find(m => m.id === memberId) : null;
 
-  const saveAndClose = useCallback(() => {
-    const errors = validateForm();
-    if (errors.length > 0) {
-      toast({
-        title: "Validation Error",
-        description: errors[0],
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // In real app, this would save to backend
-    toast({
-      title: "Success",
-      description: `Project ${isEdit ? 'updated' : 'created'} successfully`
-    });
-    navigate("/team/projects");
-  }, [projectData, isEdit, toast, navigate]);
-
-  const handleCancel = useCallback(() => {
-    if (hasUnsavedChanges && !isReadOnly) {
-      if (confirm("You have unsaved changes. Are you sure you want to leave?")) {
-        navigate("/team/projects");
+  // Permissions state
+  const [permissions, setPermissions] = useState<Permissions>(() => {
+    return existingMember?.permissions || {
+      projects: [],
+      modules: {
+        boq: {
+          read: false,
+          write: false
+        },
+        indent: {
+          read: false,
+          write: false
+        },
+        po: {
+          read: false,
+          write: false
+        },
+        vendors: {
+          read: false,
+          write: false
+        },
+        items: {
+          read: false,
+          write: false
+        },
+        team: {
+          read: false,
+          write: false
+        }
       }
-    } else {
-      navigate("/team/projects");
+    };
+  });
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: existingMember?.name || "",
+      email: existingMember?.email || "",
+      phone: existingMember?.phone || "",
+      status: existingMember?.status as "Active" | "Inactive" || "Active",
+      notes: ""
     }
-  }, [hasUnsavedChanges, isReadOnly, navigate]);
+  });
+  const selectedStatus = form.watch("status");
+  const currentStatus = existingMember?.status || "Active";
+  const onSubmit = (data: FormData) => {
+    const memberData = {
+      ...data,
+      permissions
+    };
+    console.log("Form submitted:", memberData);
+    toast({
+      title: isCreateMode ? "Member added successfully" : "Member updated successfully",
+      description: isCreateMode ? "New team member has been added to the system with custom permissions" : "Team member information and permissions have been updated"
+    });
 
-  if (isEdit && !existingProject) {
-    return (
-      <div>
-        <div className="container mx-auto px-4 py-6">
-          <Card>
-            <CardContent className="text-center py-8">
-              <p className="text-muted-foreground">Please check the project ID and try again.</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
+    // In real app, this would save to backend
+    navigate("/team/list");
+  };
+  const getRoleDescription = () => {
+    // Since roles are removed, return permissions-based description
+    const projectCount = permissions.projects.length;
+    const moduleCount = Object.values(permissions.modules).filter(m => m.read || m.write).length;
+    return `Access to ${projectCount} projects and ${moduleCount} modules`;
+  };
+  const handleSaveAndClose = () => {
+    form.handleSubmit(onSubmit)();
+  };
+  const handleSaveAndInvite = () => {
+    form.handleSubmit(data => {
+      onSubmit(data);
+      console.log(`Sending invite to ${data.email}`);
+      toast({
+        title: "Invite sent",
+        description: `Invitation email sent to ${data.email}`
+      });
+    })();
+  };
+  const handleToggleStatus = () => {
+    const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
+    form.setValue("status", newStatus as "Active" | "Inactive");
+    console.log(`Status toggled to ${newStatus}`);
+    toast({
+      title: `Member ${newStatus.toLowerCase()}`,
+      description: `User has been ${newStatus.toLowerCase()}.`
+    });
+  };
+  const handleResetPassword = () => {
+    if (existingMember?.email) {
+      console.log(`Sending password reset to ${existingMember.email}`);
+      toast({
+        title: "Password reset sent",
+        description: `Password reset email sent to ${existingMember.email}`
+      });
+    }
+  };
+  const getPageTitle = () => {
+    if (isCreateMode) return "Add New Member";
+    if (isEditMode) return "Edit Member";
+    return "Member Details";
+  };
+  const getPageSubtitle = () => {
+    if (isCreateMode) return "Add a new team member to the system";
+    if (isEditMode) return `Edit ${existingMember?.name || "member"} information`;
+    return `View ${existingMember?.name || "member"} details`;
+  };
+  return <div className="min-h-screen bg-background">
+      {/* Mobile Header */}
       
-      {isReadOnly && (
-        <div className="container mx-auto px-4 pt-4">
-          <div className="bg-muted/50 border rounded-lg p-4 mb-6">
-            <p className="text-sm text-muted-foreground">
-              You are viewing this project in read-only mode. Contact an administrator to make changes.
-            </p>
+
+      <div className="container mx-auto px-3 py-4 md:px-4 md:py-6 pb-20 md:pb-6">
+        <div className="max-w-2xl mx-auto">
+          {/* Desktop Header */}
+          <div className="hidden md:block mb-6">
+            <Button variant="ghost" onClick={() => navigate("/team/list")} className="mb-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Team
+            </Button>
           </div>
-        </div>
-      )}
-      
-      <div className="container mx-auto px-4 py-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Project Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Details</CardTitle>
+
+          <Card className="border-0 md:border shadow-none md:shadow-sm">
+            <CardHeader className="hidden md:block">
+              <CardTitle className="flex items-center gap-2">
+                {isCreateMode && "Add New Member"}
+                {isEditMode && "Edit Member"}
+                {isViewMode && "Member Details"}
+                {isViewMode && !canEdit && <Badge variant="secondary">Read Only</Badge>}
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="projectName">Project Name *</Label>
-                  <Input
-                    id="projectName"
-                    value={projectData.name}
-                    onChange={(e) => updateProjectField("name", e.target.value)}
-                    placeholder="Enter project name"
-                    disabled={isReadOnly}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="projectCode">Project Code *</Label>
-                  <Input
-                    id="projectCode"
-                    value={projectData.code}
-                    onChange={(e) => updateProjectField("code", e.target.value)}
-                    placeholder="e.g., PRJ-0012"
-                    disabled={isReadOnly}
-                  />
-                </div>
-              </div>
+            <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  {/* Identity Section */}
+                  <div className="space-y-3 md:space-y-4">
+                    <h3 className="text-base md:text-lg font-semibold">Identity</h3>
+                    
+                    <FormField control={form.control} name="name" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Full Name *</FormLabel>
+                          <FormControl>
+                            <Input {...field} disabled={!canEdit} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>} />
 
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={projectData.location}
-                  onChange={(e) => updateProjectField("location", e.target.value)}
-                  placeholder="Project site/location"
-                  disabled={isReadOnly}
-                />
-              </div>
+                    <FormField control={form.control} name="email" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Email *</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="email" disabled={!canEdit} />
+                          </FormControl>
+                          <FormDescription>
+                            Used as login username
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>} />
 
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={projectData.startDate}
-                    onChange={(e) => updateProjectField("startDate", e.target.value)}
-                    disabled={isReadOnly}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="targetDate">Target Completion Date</Label>
-                  <Input
-                    id="targetDate"
-                    type="date"
-                    value={projectData.targetCompletionDate}
-                    onChange={(e) => updateProjectField("targetCompletionDate", e.target.value)}
-                    disabled={isReadOnly}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status *</Label>
-                  <Select 
-                    value={projectData.status} 
-                    onValueChange={(value) => updateProjectField("status", value)}
-                    disabled={isReadOnly}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border border-border shadow-lg z-50">
-                      {statusOptions.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={projectData.notes}
-                  onChange={(e) => updateProjectField("notes", e.target.value)}
-                  placeholder="Project description and notes..."
-                  rows={3}
-                  disabled={isReadOnly}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Employee Assignment */}
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Employee Assignment</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Assign employees who can create BoQs and record receipts for this project
-                  </p>
-                </div>
-                {!isReadOnly && currentUser.permissions.canAssignTeam && availableMembers.length > 0 && !isAddingMember && (
-                  <Button onClick={() => setIsAddingMember(true)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Add Employee
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Add Member Form */}
-              {isAddingMember && (
-                <Card className="border-dashed">
-                  <CardContent className="pt-6">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Employee *</Label>
-                        <Select value={selectedMember} onValueChange={setSelectedMember}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select employee" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-background border border-border shadow-lg z-50">
-                            {availableMembers.map((member) => (
-                              <SelectItem key={member.id} value={member.id}>
-                                {member.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          Only Employees can be assigned to projects. Purchasers, Admins, and Accountants have access to all projects.
-                        </p>
-                      </div>
-                      <div className="space-y-2 flex items-end">
-                        <div className="flex gap-2 w-full">
-                          <Button onClick={addTeamMember}>
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" onClick={() => setIsAddingMember(false)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Employee Members List */}
-              {projectData.teamMembers.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                  <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-muted-foreground mb-3">No employees assigned to this project</p>
-                  <p className="text-sm text-muted-foreground">
-                    Assign employees who will create BoQs and record receipts for this project
-                  </p>
-                  {!isReadOnly && currentUser.permissions.canAssignTeam && availableMembers.length > 0 && (
-                    <Button onClick={() => setIsAddingMember(true)} className="mt-3">
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Add First Employee
-                    </Button>
-                  )}
-                  {availableMembers.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      All available employees are already assigned to this project.
-                    </p>
-                  )}
-                </div>
-              ) : isMobile ? (
-                <div className="space-y-4">
-                  {projectData.teamMembers.map((member) => (
-                    <Card key={member.id}>
-                      <CardContent className="pt-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarFallback>
-                                {member.name.split(' ').map(n => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h4 className="font-medium">{member.name}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                System Role: {member.systemRole}
-                              </p>
-                            </div>
-                          </div>
-                          {!isReadOnly && currentUser.permissions.canAssignTeam && (
-                            <Button size="sm" variant="outline" onClick={() => removeTeamMember(member.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                         <div className="space-y-3">
-                           <div>
-                             <Label>System Role</Label>
-                             <Badge variant="outline">{member.systemRole}</Badge>
-                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            Assigned: {new Date(member.assignedDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee Name</TableHead>
-                      <TableHead>System Role</TableHead>
-                      <TableHead>Assigned Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {projectData.teamMembers.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback>
-                                {member.name.split(' ').map(n => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">{member.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{member.systemRole}</Badge>
-                        </TableCell>
-                        <TableCell>{new Date(member.assignedDate).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          {!isReadOnly && currentUser.permissions.canAssignTeam && (
-                            <Button size="sm" variant="outline" onClick={() => removeTeamMember(member.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-
-              {availableMembers.length === 0 && !isAddingMember && !isReadOnly && (
-                <p className="text-sm text-muted-foreground text-center">
-                  All team members have been assigned to this project.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* BOQ List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Bill of Quantities (BoQs)</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                List of all BoQs created for this project
-              </p>
-            </CardHeader>
-            <CardContent>
-              {(() => {
-                // Filter BOQs for this project
-                const projectBoqs = mockData.boqs.filter(boq => boq.project === projectId);
-                
-                if (projectBoqs.length === 0) {
-                  return (
-                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                      <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-muted-foreground mb-3">No BoQs created for this project yet</p>
-                      <p className="text-sm text-muted-foreground">
-                        BoQs will appear here once they are created by assigned employees
-                      </p>
-                    </div>
-                  );
-                }
-
-                return isMobile ? (
-                  <div className="space-y-4">
-                    {projectBoqs.map((boq) => (
-                      <Card key={boq.id}>
-                        <CardContent className="pt-4">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-medium">{boq.number}</h4>
-                                <p className="text-sm text-muted-foreground">{boq.title}</p>
-                              </div>
-                              <Badge variant={
-                                boq.status === "Approved" ? "default" : 
-                                boq.status === "Compare" ? "secondary" : 
-                                "outline"
-                              }>
-                                {boq.status}
-                              </Badge>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Created By:</span>
-                                <p className="font-medium">{boq.createdBy}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Created On:</span>
-                                <p className="font-medium">{new Date(boq.createdOn).toLocaleDateString()}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Items:</span>
-                                <p className="font-medium">{boq.itemCount}</p>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Total Value:</span>
-                                <p className="font-medium">₹{boq.totalValue.toLocaleString()}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                    <FormField control={form.control} name="phone" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input {...field} disabled={!canEdit} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>} />
                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>BoQ Number</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Created By</TableHead>
-                        <TableHead>Created On</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead>Total Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {projectBoqs.map((boq) => (
-                        <TableRow key={boq.id}>
-                          <TableCell className="font-medium">{boq.number}</TableCell>
-                          <TableCell>{boq.title}</TableCell>
-                          <TableCell>{boq.createdBy}</TableCell>
-                          <TableCell>{new Date(boq.createdOn).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              boq.status === "Approved" ? "default" : 
-                              boq.status === "Compare" ? "secondary" : 
-                              "outline"
-                            }>
-                              {boq.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{boq.itemCount}</TableCell>
-                          <TableCell>₹{boq.totalValue.toLocaleString()}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                );
-              })()}
+
+                  <Separator />
+
+                  {/* Access & Status Section */}
+                  <div className="space-y-3 md:space-y-4">
+                    <h3 className="text-base md:text-lg font-semibold">Access & Status</h3>
+                    
+                    {/* Show current access summary */}
+                    {(isEditMode || isViewMode) && <div className="p-3 bg-muted rounded-md">
+                        <p className="text-sm font-medium">Current Access</p>
+                        <p className="text-sm text-muted-foreground">
+                          {getRoleDescription()}
+                        </p>
+                      </div>}
+
+                    <FormField control={form.control} name="status" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!canEdit}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="Active">Active</SelectItem>
+                              <SelectItem value="Inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>} />
+
+                    <FormField control={form.control} name="notes" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Notes</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} disabled={!canEdit} className="min-h-[80px]" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>} />
+                  </div>
+
+                  {/* Permissions Section */}
+                  {canEdit && <>
+                      <Separator />
+                      <div className="space-y-3 md:space-y-4">
+                        <h3 className="text-base md:text-lg font-semibold">Access Control & Permissions</h3>
+                        <PermissionsManager permissions={permissions} onChange={setPermissions} disabled={!canEdit} />
+                      </div>
+                    </>}
+
+                  {/* Login Section (Edit Mode Only) */}
+                  {(isEditMode || isViewMode) && <>
+                      <Separator />
+                      <div className="space-y-3 md:space-y-4">
+                        <h3 className="text-base md:text-lg font-semibold">Login Information</h3>
+                        
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+                            <span className="text-sm font-medium">Last Login</span>
+                            <span className="text-sm text-muted-foreground">
+                              {existingMember?.joinDate || "Never"}
+                            </span>
+                          </div>
+                          
+                          {canEdit && <div className="flex flex-col sm:flex-row gap-2">
+                              <Button type="button" variant="outline" onClick={handleResetPassword} className="flex-1">
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Reset Password
+                              </Button>
+                              
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button type="button" variant="outline" className="flex-1">
+                                    {currentStatus === "Active" ? <>
+                                        <PowerOff className="mr-2 h-4 w-4" />
+                                        Deactivate
+                                      </> : <>
+                                        <Power className="mr-2 h-4 w-4" />
+                                        Activate
+                                      </>}
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      {currentStatus === "Active" ? "Deactivate" : "Activate"} User
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      {currentStatus === "Active" ? "User will lose access to the system. Continue?" : "User will regain access to the system. Continue?"}
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleToggleStatus}>
+                                      {currentStatus === "Active" ? "Deactivate" : "Activate"}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>}
+                        </div>
+                      </div>
+                    </>}
+
+                  {/* Actions */}
+                  <Separator className="hidden md:block" />
+                  
+                  {/* Mobile Action Buttons */}
+                  <div className="md:hidden fixed bottom-16 left-0 right-0 p-4 bg-background border-t">
+                    <div className="flex gap-2">
+                      {canEdit ? <>
+                          <Button type="submit" className="flex-1">
+                            Save
+                          </Button>
+                          <Button type="button" variant="outline" onClick={() => navigate("/team/list")} className="flex-1">
+                            Cancel
+                          </Button>
+                        </> : <Button type="button" variant="outline" onClick={() => navigate("/team/list")} className="w-full">
+                          Back to List
+                        </Button>}
+                    </div>
+                    
+                    {/* Additional actions for create mode */}
+                    {canEdit && isCreateMode && <Button type="button" variant="ghost" onClick={handleSaveAndInvite} className="w-full mt-2">
+                        <Mail className="mr-2 h-4 w-4" />
+                        Save & Send Invite
+                      </Button>}
+                  </div>
+
+                  {/* Desktop Action Buttons */}
+                  <div className="hidden md:flex flex-col sm:flex-row gap-3 pt-4">
+                    {canEdit && <>
+                        <Button type="submit" className="flex-1">
+                          Save
+                        </Button>
+                        
+                        {isCreateMode && <Button type="button" variant="outline" onClick={handleSaveAndInvite} className="flex-1">
+                            <Mail className="mr-2 h-4 w-4" />
+                            Save & Send Invite
+                          </Button>}
+                        
+                        <Button type="button" variant="outline" onClick={handleSaveAndClose} className="flex-1">
+                          Save & Close
+                        </Button>
+                      </>}
+                    
+                    <Button type="button" variant="ghost" onClick={() => navigate("/team/list")} className={canEdit ? "flex-1" : "w-full"}>
+                      {canEdit ? "Cancel" : "Back to List"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
             </CardContent>
           </Card>
-
-          {/* Action Buttons */}
-          {!isReadOnly && (
-            <div className="flex gap-4 justify-end">
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-              <Button variant="outline" onClick={saveProject}>
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </Button>
-              <Button onClick={saveAndClose}>
-                <Save className="h-4 w-4 mr-2" />
-                Save & Close
-              </Button>
-            </div>
-          )}
-
-          {hasUnsavedChanges && !isReadOnly && (
-            <div className="text-sm text-amber-600 text-center">
-              You have unsaved changes
-            </div>
-          )}
         </div>
       </div>
-    </div>
-  );
+    </div>;
 }

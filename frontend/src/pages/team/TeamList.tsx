@@ -25,7 +25,7 @@ export default function TeamList() {
   const [sortBy, setSortBy] = useState("name");
 
   const [teamMembers, setTeamMembers] = useState([]);
-const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
 
   //const teamMembers = mockData.teamMembers;
@@ -35,8 +35,7 @@ const [loading, setLoading] = useState(true);
     try {
       setLoading(true);
       const res = await axios.get("http://localhost:8000/api/team");
-
-      // Backend returns array directly, not inside res.data.result
+      
       setTeamMembers(res.data);
       console.log(res.data);
       
@@ -308,18 +307,18 @@ const [loading, setLoading] = useState(true);
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {canViewDetails && (
-                              <DropdownMenuItem onClick={() => navigate(`/team/edit?id=${member.id}&mode=view`)}>
+                              <DropdownMenuItem onClick={() => navigate(`/team/edit?id=${member.teamId}&mode=view`)}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
                             )}
                             {canManageTeam && (
                               <>
-                                <DropdownMenuItem onClick={() => navigate(`/team/edit?id=${member.id}`)}>
+                                <DropdownMenuItem onClick={() => navigate(`/team/edit?id=${member.teamId}`)}>
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit Member
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleToggleStatus(member.id, member.status)}>
+                                <DropdownMenuItem onClick={() => handleToggleStatus(member.teamId, member.status)}>
                                   {member.status === "Active" ? (
                                     <>
                                       <PowerOff className="mr-2 h-4 w-4" />
@@ -363,7 +362,7 @@ const [loading, setLoading] = useState(true);
                 </TableHeader>
                 <TableBody>
                   {filteredAndSortedMembers.map((member) => (
-                    <TableRow key={member.id}>
+                    <TableRow key={member.teamId}>
                       <TableCell>
                         <div>
                           <div className="font-medium">{member.name}</div>
@@ -393,7 +392,7 @@ const [loading, setLoading] = useState(true);
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => navigate(`/team/edit?id=${member.id}&mode=view`)}
+                                onClick={() => navigate(`/team/edit?id=${member.teamId}&mode=view`)}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -403,7 +402,7 @@ const [loading, setLoading] = useState(true);
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => navigate(`/team/edit?id=${member.id}`)}
+                                  onClick={() => navigate(`/team/edit?id=${member.teamId}`)}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -415,7 +414,7 @@ const [loading, setLoading] = useState(true);
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleToggleStatus(member.id, member.status)}>
+                                    <DropdownMenuItem onClick={() => handleToggleStatus(member.teamId, member.status)}>
                                       {member.status === "Active" ? (
                                         <>
                                           <PowerOff className="mr-2 h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Search, Filter, Plus, Eye, Edit, Trash2 } from "lucide-react";
+import { service } from "@/shared/_services/api_service";
 
 import boqData from "../../data/boqData.json";
 
@@ -25,9 +26,19 @@ export default function BOQList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [boqs, setBoqs] = useState([])
 
-  const filteredBOQs = boqData.boqs.filter(boq => {
-    const matchesSearch = boq.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  useEffect(()=>{
+    const getBoq = async ()=>{
+    const res = await service.getAllBoq()
+    setBoqs(res.data || [])
+    
+    }
+    getBoq()
+  },[])
+
+  const filteredBOQs = boqs.filter(boq => {
+    const matchesSearch = 
                          boq.project.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          boq.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesProject = !selectedProject || selectedProject === "all" || boq.project === selectedProject;
@@ -296,4 +307,4 @@ export default function BOQList() {
       </Card>
     </div>
   );
-}
+}    

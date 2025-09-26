@@ -8,7 +8,6 @@ const ProjectSchema = new Schema(
     projectCode: { type: String, required: true, unique: true, trim: true },
      location:{type: String, required: true},
     startDate: { type: Date, required: true },
-   
     targetCompletionDate: { type: Date, required: true },
     status: {
       type: String,

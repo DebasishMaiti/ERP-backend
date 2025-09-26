@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,21 +10,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Trash2, ArrowLeft, Save, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import axios from "axios";
 
 // Mock data
-const mockProjects = [
-  { id: "PRJ001", name: "Office Building Phase 1" },
-  { id: "PRJ002", name: "Residential Complex" },
-  { id: "PRJ003", name: "Shopping Mall" }
-];
+// const mockProjects = [
+//   { id: "PRJ001", name: "Office Building Phase 1" },
+//   { id: "PRJ002", name: "Residential Complex" },
+//   { id: "PRJ003", name: "Shopping Mall" }
+// ];
 
-const mockItems = [
-  { id: "ITM001", name: "Cement - OPC 53 Grade", unit: "Bags" },
-  { id: "ITM002", name: "Steel Bars - 10mm", unit: "Tons" },
-  { id: "ITM003", name: "Bricks - Red Clay", unit: "Nos" },
-  { id: "ITM004", name: "Sand - River Sand", unit: "Cubic Feet" },
-  { id: "ITM005", name: "Aggregate - 20mm", unit: "Cubic Feet" }
-];
+// const mockItems = [
+//   { id: "ITM001", name: "Cement - OPC 53 Grade", unit: "Bags" },
+//   { id: "ITM002", name: "Steel Bars - 10mm", unit: "Tons" },
+//   { id: "ITM003", name: "Bricks - Red Clay", unit: "Nos" },
+//   { id: "ITM004", name: "Sand - River Sand", unit: "Cubic Feet" },
+//   { id: "ITM005", name: "Aggregate - 20mm", unit: "Cubic Feet" }
+// ];
 
 interface EstimateItem {
   id: string;
@@ -44,6 +45,9 @@ export default function BOQCreate() {
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
+  const [mockProjects, setMockProjects] = useState([]);
+  const [mockItems, setMockItems] = useState([])
+
 
   const addEstimateItem = () => {
     const newItem: EstimateItem = {
@@ -59,6 +63,83 @@ export default function BOQCreate() {
   const removeEstimateItem = (id: string) => {
     setEstimateItems(estimateItems.filter(item => item.id !== id));
   };
+
+    const getProjects = async ()=>{
+    const res = await axios.get("http://localhost:8000/api/project");
+    setMockProjects(res.data)
+    console.log(res.data);
+  }
+
+  const getItems = async ()=>{
+    const res = await axios.get("http://localhost:8000/api/item");
+    setMockItems(res.data);
+    console.log(res.data, 'item');
+    
+  }
+
+    useEffect(()=>{
+      getProjects()
+      getItems()
+  },[])
+
+  const handleSaveAsDraft = async () => {
+  if (!validateForm()) return;
+
+  try {
+    const payload = {
+      project: selectedProject,
+      name: boqName,
+      description,
+      notes,
+      status: "draft",
+      items: estimateItems.map(item => ({
+        item: item.itemId,
+        plannedQty: item.plannedQuantity,
+        unit: 10,
+        rate: item.rate || null
+      }))
+    };
+
+    const res = await axios.post("http://localhost:8000/api/boq", payload);
+
+    toast({ title: "Success", description: "BOQ saved as draft" });
+    console.log("BOQ Created:", res.data);
+    navigate("/boq/list");
+  } catch (error: any) {
+    console.error("Error creating BOQ:", error);
+    toast({ title: "Error", description: error?.response?.data?.message || "Failed to save draft", variant: "destructive" });
+  }
+};
+
+const handleSendAndConfirm = async () => {
+  if (!validateForm()) return;
+
+  try {
+    const payload = {
+      project: selectedProject,
+      name: boqName,
+      description,
+      notes,
+      status: "comfirmed",
+      items: estimateItems.map(item => ({
+        item: item.itemId,
+        plannedQty: item.plannedQuantity,
+        unit: item.unit,
+        rate: item.rate || null
+      }))
+    };
+
+    const res = await axios.post("http://localhost:8000/api/boq", payload);
+
+    toast({ title: "Success", description: "BOQ confirmed successfully" });
+    console.log("BOQ Created:", res.data);
+    navigate("/boq/list");
+  } catch (error: any) {
+    console.error("Error creating BOQ:", error);
+    toast({ title: "Error", description: error?.response?.data?.message || "Failed to confirm BOQ", variant: "destructive" });
+  }
+};
+
 
   const updateEstimateItem = (id: string, field: keyof EstimateItem, value: any) => {
     setEstimateItems(estimateItems.map(item => {
@@ -109,20 +190,6 @@ export default function BOQCreate() {
     }
     
     return true;
-  };
-
-  const handleSaveAsDraft = () => {
-    if (!validateForm()) return;
-    
-    toast({ title: "Success", description: "BOQ saved as draft" });
-    navigate("/boq/list");
-  };
-
-  const handleSendAndConfirm = () => {
-    if (!validateForm()) return;
-    
-    toast({ title: "Success", description: "BOQ confirmed successfully" });
-    navigate("/boq/list");
   };
 
   const getSelectedItemName = (itemId: string) => {
@@ -251,7 +318,7 @@ export default function BOQCreate() {
                         <Input
                           value={item.unit}
                           placeholder="Unit"
-                          readOnly
+                           
                         />
                       </div>
                     </div>
@@ -305,7 +372,7 @@ export default function BOQCreate() {
                 </SelectTrigger>
                 <SelectContent>
                   {mockProjects.map(project => (
-                    <SelectItem key={project.id} value={project.id}>
+                    <SelectItem key={project._id} value={project._id}>
                       {project.name}
                     </SelectItem>
                   ))}
@@ -392,7 +459,7 @@ export default function BOQCreate() {
                             </SelectTrigger>
                             <SelectContent>
                               {mockItems.map(mockItem => (
-                                <SelectItem key={mockItem.id} value={mockItem.id}>
+                                <SelectItem key={mockItem._id} value={mockItem._id}>
                                   {mockItem.name}
                                 </SelectItem>
                               ))}
@@ -411,7 +478,7 @@ export default function BOQCreate() {
                           <Input
                             value={item.unit}
                             placeholder="Unit"
-                            readOnly
+                            
                           />
                         </TableCell>
                         <TableCell>

@@ -15,6 +15,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Search, Filter, RotateCcw, Eye, FileText, CreditCard, AlertTriangle } from "lucide-react";
 import mockData from "@/data/mockData.json";
 
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, RootState } from "../../store/store"; 
+import { getVendorList } from "@/store/vendorSlice";
+
+
 // Define vendor interface with createdDate
 interface Vendor {
   id: string;
@@ -60,54 +65,62 @@ export default function VendorList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [balanceFilter, setBalanceFilter] = useState("all");
   const [sortBy, setSortBy] = useState("balance-desc");
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // const [vendors, setVendors] = useState<Vendor[]>([]);
+  // const [isLoading, setIsLoading] = useState();
+  // const [error, setError] = useState<string | null>(null);
+  const dispatch = useDispatch<AppDispatch>();
+  const { vendors, isLoading, error } = useSelector((state: RootState) => state.vendor);
 
-  // Fetch vendors from API using Axios
+  
+  console.log(vendors);
+  
   useEffect(() => {
-    const fetchVendors = async () => {
-      setIsLoading(true);
-      try {
-        const response = await axios.get("http://localhost:8000/api/vendor", {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+  dispatch(getVendorList() );
+}, [dispatch]);
 
-        // Map API response to Vendor interface
-        const mappedVendors: Vendor[] = response.data.result.map((vendor: any) => ({
-          id: vendor.vendorId,
-          name: vendor.name,
-          contact: vendor.contactPerson,
-          phone: vendor.phone,
-          email: vendor.email,
-          address: vendor.address,
-          status: vendor.status,
-          outstandingBalance: vendor.outstandingBalance || 0, // Default if not provided
-          createdDate: vendor.createdAt,
-          paymentHistory: vendor.paymentHistory || [], // Default if not provided
-        }));
-        setVendors(mappedVendors);
-        setError(null);
-      } catch (error: any) {
-        console.error("Error fetching vendors:", error);
-        const errorMessage = error.response?.data?.error || error.message || "Failed to fetch vendors";
-        setError(errorMessage);
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    fetchVendors();
-  }, [toast]);
+// Fetch vendors from API using Axios
+// useEffect(() => {
+//   const fetchVendors = async () => {
+//     setIsLoading(true);
+//     try {
+//       const response = await axios.get("http://localhost:8000/api/vendor", {
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//       });
+//       // Map API response to Vendor interface
+//       const mappedVendors: Vendor[] = response.data.result.map((vendor: any) => ({
+//         id: vendor.vendorId,
+//         name: vendor.name,
+//         contact: vendor.contactPerson,
+//         phone: vendor.phone,
+//         email: vendor.email,
+//         address: vendor.address,
+//         status: vendor.status,
+//         outstandingBalance: vendor.outstandingBalance || 0, // Default if not provided
+//         createdDate: vendor.createdAt,
+//         paymentHistory: vendor.paymentHistory || [], // Default if not provided
+//       }));
+//       setVendors(mappedVendors);
+//       setError(null);
+//     } catch (error: any) {
+//       console.error("Error fetching vendors:", error);
+//       const errorMessage = error.response?.data?.error || error.message || "Failed to fetch vendors";
+//       setError(errorMessage);
+//       toast({
+//         title: "Error",
+//         description: errorMessage,
+//         variant: "destructive",
+//       });
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+//   fetchVendors();
+// }, [toast]);
 
-  // Check permissions - Employee should not see this page
+// Check permissions - Employee should not see this page
   if (!currentUser.permissions.canViewVendors) {
     return (
       <div>
@@ -405,7 +418,7 @@ export default function VendorList() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleViewVendor(vendor.id)}>
+                    <Button size="sm" variant="outline" onClick={() => handleViewVendor(vendor.vendorId)}>
                       <Eye className="h-3 w-3 mr-1" />
                       Open
                     </Button>
@@ -442,11 +455,11 @@ export default function VendorList() {
               </TableHeader>
               <TableBody>
                 {filteredVendors.map(vendor => (
-                  <TableRow key={vendor.id}>
-                    <TableCell className="font-mono text-sm">{vendor.id}</TableCell>
+                  <TableRow key={vendor.vendorId}>
+                    <TableCell className="font-mono text-sm">{vendor.vendorId}</TableCell>
                     <TableCell className="font-medium">{vendor.name}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(vendor.createdDate).toLocaleDateString('en-IN', {
+                      {new Date(vendor.createdAt).toLocaleDateString('en-IN', {
                         day: '2-digit',
                         month: 'short',
                         year: 'numeric'
@@ -475,22 +488,22 @@ export default function VendorList() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span className={`font-semibold ${vendor.outstandingBalance > 0 ? 'text-destructive' : 'text-success'}`}>
-                          ₹{vendor.outstandingBalance.toLocaleString()}
+                          {/* ₹{vendor.outstandingBalance.toLocaleString()} */}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleViewVendor(vendor.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleViewVendor(vendor.vendorId)}>
                           <Eye className="h-3 w-3 mr-1" />
                           Open
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleVendorLedger(vendor.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleVendorLedger(vendor.vendorId)}>
                           <FileText className="h-3 w-3 mr-1" />
                           Ledger
                         </Button>
                         {canMakePayments && (
-                          <Button size="sm" variant="outline" onClick={() => handleAddPayment(vendor.id)}>
+                          <Button size="sm" variant="outline" onClick={() => handleAddPayment(vendor.vendorId)}>
                             <CreditCard className="h-3 w-3 mr-1" />
                             Payment
                           </Button>

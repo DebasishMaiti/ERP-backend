@@ -11,7 +11,6 @@ import {
 export const createItemController = async (req: Request, res: Response) => {
   try {
     const { name, unit, vendors } = req.body;
-      console.log(req.body);
       
     if (!name || !unit || !Array.isArray(vendors) || vendors.length === 0) {
       return res.status(400).json({ message: "Please provide name, unit and at least one vendor entry" });
@@ -66,7 +65,7 @@ export const updateItemController = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error updating item", error });
   }
 };
- 
+
 export const deleteItemController = async (req: Request, res: Response) => {
   try {
     const result = await deleteItem(req.params.id);

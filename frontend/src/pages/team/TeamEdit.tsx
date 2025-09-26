@@ -20,7 +20,7 @@ const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
   phone: z.string().optional(),
-  status: z.enum(["Active", "Inactive"]),
+  status: z.enum(["active", "inactive"]),
   notes: z.string().optional()
 });
 type FormData = z.infer<typeof formSchema>;
@@ -90,12 +90,12 @@ export default function TeamEdit() {
       name: existingMember?.name || "",
       email: existingMember?.email || "",
       phone: existingMember?.phone || "",
-      status: existingMember?.status as "Active" | "Inactive" || "Active",
+      status: existingMember?.status as "active" | "inactive" || "active",
       notes: ""
     }
   });
   const selectedStatus = form.watch("status");
-  const currentStatus = existingMember?.status || "Active";
+  const currentStatus = existingMember?.status || "active";
 const onSubmit = async (data: FormData) => {
   const memberData = {
     ...data,
@@ -166,8 +166,8 @@ const onSubmit = async (data: FormData) => {
     })();
   };
   const handleToggleStatus = () => {
-    const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
-    form.setValue("status", newStatus as "Active" | "Inactive");
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    form.setValue("status", newStatus as "active" | "inactive");
     console.log(`Status toggled to ${newStatus}`);
     toast({
       title: `Member ${newStatus.toLowerCase()}`,
@@ -282,8 +282,8 @@ const onSubmit = async (data: FormData) => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="Active">Active</SelectItem>
-                              <SelectItem value="Inactive">Inactive</SelectItem>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -332,7 +332,7 @@ const onSubmit = async (data: FormData) => {
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button type="button" variant="outline" className="flex-1">
-                                    {currentStatus === "Active" ? <>
+                                    {currentStatus === "active" ? <>
                                         <PowerOff className="mr-2 h-4 w-4" />
                                         Deactivate
                                       </> : <>
@@ -344,16 +344,16 @@ const onSubmit = async (data: FormData) => {
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>
-                                      {currentStatus === "Active" ? "Deactivate" : "Activate"} User
+                                      {currentStatus === "active" ? "Deactivate" : "Activate"} User
                                     </AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      {currentStatus === "Active" ? "User will lose access to the system. Continue?" : "User will regain access to the system. Continue?"}
+                                      {currentStatus === "active" ? "User will lose access to the system. Continue?" : "User will regain access to the system. Continue?"}
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={handleToggleStatus}>
-                                      {currentStatus === "Active" ? "Deactivate" : "Activate"}
+                                      {currentStatus === "active" ? "Deactivate" : "Activate"}
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>

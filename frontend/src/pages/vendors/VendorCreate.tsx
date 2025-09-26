@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,15 +11,19 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Save, X } from "lucide-react";
-import mockData from "@/data/mockData.json";
+
+// Import Redux actions and types
+import { AppDispatch, RootState } from "../../store/store";
+import { createVendor } from "@/store/vendorSlice";  
+ 
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
   id: "TM-002",
   name: "Jane Smith",
-  role: "Purchaser", // Employee, Purchaser, Admin, Accountant
+  role: "Purchaser",
   permissions: {
-    canCreateVendors: true, // Purchaser/Admin: true
+    canCreateVendors: true,
     canViewVendors: true
   }
 };
@@ -40,6 +45,10 @@ export default function VendorCreate() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
+  // Redux hooks
+  const dispatch = useDispatch<AppDispatch>();
+  const { isLoading, error } = useSelector((state: RootState) => state.vendor);
+  
   const [vendorData, setVendorData] = useState<VendorData>({
     name: "",
     contact: "",
@@ -53,7 +62,7 @@ export default function VendorCreate() {
   });
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
 
   // Check permissions
   if (!currentUser.permissions.canCreateVendors) {
@@ -73,101 +82,98 @@ export default function VendorCreate() {
   const updateVendorField = useCallback((field: keyof VendorData, value: any) => {
     setVendorData(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
-  }, []);
+ 
+    if (formErrors.length > 0) {
+      setFormErrors([]);
+    }
+  }, [formErrors]);
 
-  const validateForm = () => {
+  const validateForm = (): boolean => {
     const errors: string[] = [];
 
     if (!vendorData.name.trim()) {
       errors.push("Vendor name is required");
     }
 
-    // Check for duplicate vendor name
-    const isDuplicate = mockData.vendors.some(v => 
-      v.name.toLowerCase() === vendorData.name.toLowerCase()
-    );
-    
-    if (isDuplicate) {
-      errors.push("A vendor with this name already exists");
-    }
-
-    // Validate email format if provided
-    if (vendorData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendorData.email)) {
-      errors.push("Please enter a valid email address");
-    }
-
-    // Validate payment terms if provided
-    if (vendorData.paymentTerms && (isNaN(Number(vendorData.paymentTerms)) || Number(vendorData.paymentTerms) < 0)) {
-      errors.push("Payment terms must be a valid number of days");
-    }
-
-    // Additional backend-required fields
     if (!vendorData.contact.trim()) {
       errors.push("Contact person is required");
     }
+    
     if (!vendorData.phone.trim()) {
       errors.push("Phone number is required");
     }
+    
     if (!vendorData.email.trim()) {
       errors.push("Email is required");
     }
+    
     if (!vendorData.address.trim()) {
       errors.push("Address is required");
     }
+    
     if (!vendorData.gstin.trim()) {
       errors.push("GSTIN / Tax ID is required");
     }
+    
     if (!vendorData.paymentTerms.trim()) {
       errors.push("Payment terms is required");
     }
 
-    return errors;
+    // Validate email format
+    if (vendorData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vendorData.email)) {
+      errors.push("Please enter a valid email address");
+    }
+
+    // Validate payment terms is a positive number
+    if (vendorData.paymentTerms && (isNaN(Number(vendorData.paymentTerms)) || Number(vendorData.paymentTerms) < 0)) {
+      errors.push("Payment terms must be a valid number of days");
+    }
+
+    setFormErrors(errors);
+    return errors.length === 0;
   };
 
-  const saveVendor = useCallback(async () => {
-    const errors = validateForm();
-    if (errors.length > 0) {
+  const prepareVendorPayload = () => {
+    return {
+      name: vendorData.name,
+      contactPerson: vendorData.contact,
+      phone: vendorData.phone,
+      email: vendorData.email,
+      address: vendorData.address,
+      gstin: vendorData.gstin,
+      paymentDays: Number(vendorData.paymentTerms),
+      notes: vendorData.notes,
+      status: vendorData.active ? "active" : "inactive",
+    };
+  };
+
+  const handleCreateVendor = useCallback(async (navigateAfterSave: boolean = false) => {
+    if (!validateForm()) {
       toast({
         title: "Validation Error",
-        description: errors[0],
+        description: formErrors[0],
         variant: "destructive"
       });
       return;
     }
 
-    setIsSaving(true);
     try {
-      const payload = {
-        name: vendorData.name,
-        contactPerson: vendorData.contact,
-        phone: vendorData.phone,
-        email: vendorData.email,
-        address: vendorData.address,
-        gstin: vendorData.gstin,
-        paymentDays: Number(vendorData.paymentTerms),
-        notes: vendorData.notes,
-        status: vendorData.active ? "active" : "inactive",
-      };
-
-      const response = await fetch("http://localhost:8000/api/vendor", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-
-      await response.json();
+      const payload = prepareVendorPayload();
+ 
+      const result = await dispatch(createVendor(payload));
+      
+     
       toast({
         title: "Success",
         description: `Vendor "${vendorData.name}" created successfully`
       });
+      
       setHasUnsavedChanges(false);
+      
+      if (navigateAfterSave) {
+        navigate("/vendors/list");
+      }
+      
     } catch (error: any) {
       console.error("Error creating vendor:", error);
       toast({
@@ -175,66 +181,16 @@ export default function VendorCreate() {
         description: error.message || "Failed to create vendor. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsSaving(false);
     }
-  }, [vendorData, toast]);
+  }, [vendorData, formErrors, toast, dispatch, navigate]);
+
+  const saveVendor = useCallback(async () => {
+    await handleCreateVendor(false);
+  }, [handleCreateVendor]);
 
   const saveAndClose = useCallback(async () => {
-    const errors = validateForm();
-    if (errors.length > 0) {
-      toast({
-        title: "Validation Error",
-        description: errors[0],
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const payload = {
-        name: vendorData.name,
-        contactPerson: vendorData.contact,
-        phone: vendorData.phone,
-        email: vendorData.email,
-        address: vendorData.address,
-        gstin: vendorData.gstin,
-        paymentDays: Number(vendorData.paymentTerms),
-        notes: vendorData.notes,
-        status: vendorData.active ? "active" : "inactive",
-      };
-
-      const response = await fetch("http://localhost:8000/api/vendor", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-
-      await response.json();
-      toast({
-        title: "Success",
-        description: `Vendor "${vendorData.name}" created successfully`
-      });
-      navigate("/vendors/list");
-    } catch (error: any) {
-      console.error("Error creating vendor:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create vendor. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }, [vendorData, toast, navigate]);
+    await handleCreateVendor(true);
+  }, [handleCreateVendor]);
 
   const handleCancel = useCallback(() => {
     if (hasUnsavedChanges) {
@@ -246,9 +202,17 @@ export default function VendorCreate() {
     }
   }, [hasUnsavedChanges, navigate]);
 
+  // Show error from Redux state if any
+  if (error) {
+    toast({
+      title: "Error",
+      description: error,
+      variant: "destructive"
+    });
+  }
+
   return (
     <div>
-      
       <div className="container mx-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Vendor Details */}
@@ -257,6 +221,7 @@ export default function VendorCreate() {
               <CardTitle>Vendor Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Form Fields - Same as before */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="vendorName">Vendor Name *</Label>
@@ -268,7 +233,7 @@ export default function VendorCreate() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contact">Contact Person</Label>
+                  <Label htmlFor="contact">Contact Person *</Label>
                   <Input
                     id="contact"
                     value={vendorData.contact}
@@ -280,7 +245,7 @@ export default function VendorCreate() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label htmlFor="phone">Phone *</Label>
                   <Input
                     id="phone"
                     value={vendorData.phone}
@@ -289,7 +254,7 @@ export default function VendorCreate() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -301,7 +266,7 @@ export default function VendorCreate() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
+                <Label htmlFor="address">Address *</Label>
                 <Textarea
                   id="address"
                   value={vendorData.address}
@@ -313,7 +278,7 @@ export default function VendorCreate() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="gstin">GSTIN / Tax ID</Label>
+                  <Label htmlFor="gstin">GSTIN / Tax ID *</Label>
                   <Input
                     id="gstin"
                     value={vendorData.gstin}
@@ -322,7 +287,7 @@ export default function VendorCreate() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="paymentTerms">Payment Terms (days)</Label>
+                  <Label htmlFor="paymentTerms">Payment Terms (days) *</Label>
                   <Input
                     id="paymentTerms"
                     type="number"
@@ -355,26 +320,44 @@ export default function VendorCreate() {
                   rows={3}
                 />
               </div>
+
+              {/* Validation Errors */}
+              {formErrors.length > 0 && (
+                <div className="p-3 border border-destructive bg-destructive/10 rounded-md">
+                  <ul className="text-sm text-destructive list-disc list-inside">
+                    {formErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Action Buttons */}
           <div className="flex gap-4 justify-end">
-            <Button variant="outline" onClick={handleCancel}>
+            <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-            <Button variant="outline" onClick={saveVendor} disabled={isSaving}>
+            <Button 
+              variant="outline" 
+              onClick={saveVendor} 
+              disabled={isLoading}
+            >
               <Save className="h-4 w-4 mr-2" />
-              Save
+              {isLoading ? "Saving..." : "Save"}
             </Button>
-            <Button onClick={saveAndClose} disabled={isSaving}>
+            <Button 
+              onClick={saveAndClose} 
+              disabled={isLoading}
+            >
               <Save className="h-4 w-4 mr-2" />
-              Save & Close
+              {isLoading ? "Saving..." : "Save & Close"}
             </Button>
           </div>
 
-          {hasUnsavedChanges && (
+          {hasUnsavedChanges && !isLoading && (
             <div className="text-sm text-amber-600 text-center">
               You have unsaved changes
             </div>

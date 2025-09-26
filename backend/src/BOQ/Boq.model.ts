@@ -1,18 +1,20 @@
 import mongoose, { Schema } from "mongoose";
 
-const STATUS_TYPES = ["draft","comfimed","active","deleted"] as const;
+const STATUS_TYPES = ["draft", "comfirmed", "active", "deleted"] as const;
 
 const BoqSchema = new Schema(
   {
+    boqId: { type: String, unique: true }, 
+
     project: {
       type: Schema.Types.ObjectId,
       ref: "Project",
       required: true,
     },
-    boqName: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     notes: { type: String, trim: true },
-    status:{type: String, enum:STATUS_TYPES},
+    status: { type: String, enum: STATUS_TYPES },
     items: [
       {
         item: {
@@ -22,12 +24,34 @@ const BoqSchema = new Schema(
         },
         plannedQty: { type: Number, required: true },
         unit: { type: String, required: true },
-        rate: { type: Number }, 
+        rate: { type: Number },
       },
     ],
   },
   { timestamps: true }
 );
+
+ 
+BoqSchema.pre("save", async function (next) {
+  if (!this.boqId) {
+    const lastBoq = await mongoose
+      .model("Boq")
+      .findOne({})
+      .sort({ createdAt: -1 })
+      .exec();
+
+    let newIdNumber = 1;
+
+    if (lastBoq && lastBoq.boqId) {
+      const lastId = lastBoq.boqId.split("-")[1];
+      newIdNumber = parseInt(lastId, 10) + 1;
+    }
+
+    this.boqId = `BQ-${newIdNumber.toString().padStart(3, "0")}`;
+  }
+
+  next();
+});
 
 export type BoqDocument = mongoose.InferSchemaType<typeof BoqSchema>;
 

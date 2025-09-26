@@ -59,9 +59,7 @@ export const getInctiveTeamController = async (req:Request, res:Response)=>{
 
 export const getTeamByIdController = async (req: Request, res: Response) => {
   try {
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-          return res.status(400).json({ message: "Invalid vendor ID" });
-        }
+      
         const result = await getTeamById(req.params.id);
         res.status(200).json(result);
   } catch (error: any) {
@@ -76,10 +74,7 @@ export const updateTeamController = async (req: Request, res: Response) => {
     if (!name || !email || !phone || !status || !notes || !permissions) {
       return res.status(400).json({ message: "Please fill all required fields" });
     }
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ message: "Invalid vendor ID" });
-      }
-       const result = await updateTeam(
+      const result = await updateTeam(
       name,
       email,
       phone,

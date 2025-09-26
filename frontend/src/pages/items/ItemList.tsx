@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Edit, Eye, Search, Filter, RotateCcw } from "lucide-react";
+import { AppDispatch } from "@/store/store";
+import { UseDispatch } from "react-redux";
+import { service } from "@/shared/_services/api_service";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
@@ -54,7 +57,7 @@ export default function ItemList() {
   useEffect(() => {
     const fetchItems = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/api/item");
+        const res = await service.getAllItem();
         setItems(res.data);
       } catch (err) {
         console.error("Error fetching items:", err);

@@ -5,13 +5,14 @@ import mongoose from "mongoose";
  
 export const createBoqController = async (req: Request, res: Response) => {
   try {
-    const { project, boqName, description, notes, items, status} = req.body;
+    const { project, name, description, notes, items, status} = req.body;
+    console.log(req.body);
     
-    if(!project || !boqName || !description || !items){
+    if(!project || !name || !description || !items){
         return res.status(400).json({ message: "Please fill all the fields" });
     }
  
-    const result = await createBoq(project, boqName, description, notes, items, status);
+    const result = await createBoq(project, name, description, notes, items, status);
 
     res.status(201).json(result);
   } catch (err: any) {
@@ -61,9 +62,7 @@ export const getActiveBoqsController = async (req: Request, res: Response) => {
  
 export const getBoqByIdController = async (req: Request, res: Response) => {
   try {
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-            return res.status(400).json({ message: "Invalid vendor ID" });
-         }
+        
          const result = await getBoqById(req.params.id)
 
     res.status(200).json(result);
@@ -76,9 +75,7 @@ export const updateBoqController = async (req: Request, res: Response) => {
   try {
     const {id} = req.params;
     const { project, boqName, description, notes, items, status} = req.body;
-            if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Invalid vendor ID" });
-         }
+            
            if(!project || !boqName || !items){
         return res.status(400).json({ message: "Please fill all the fields" });
     }

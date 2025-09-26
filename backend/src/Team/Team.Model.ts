@@ -4,8 +4,9 @@ export interface Permission {
   read: boolean;
   write: boolean;
 }
- 
+
 export interface ITeam extends Document {
+  teamId: string;
   name: string;
   email: string;
   phone: string;
@@ -49,9 +50,10 @@ const PermissionSchema = new Schema<Permission>(
   },
   { _id: false }
 );
- 
+
 const TeamSchema = new Schema<ITeam>(
   {
+    teamId: { type: String, unique: true }, 
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, unique: true },
     phone: { type: String, required: true, trim: true },
@@ -90,6 +92,28 @@ const TeamSchema = new Schema<ITeam>(
   },
   { timestamps: true }
 );
+
+ 
+TeamSchema.pre<ITeam>("save", async function (next) {
+  if (!this.teamId) {
+    const lastTeam = await mongoose
+      .model<ITeam>("Team")
+      .findOne({})
+      .sort({ createdAt: -1 })
+      .exec();
+
+    let newIdNumber = 1;
+
+    if (lastTeam && lastTeam.teamId) {
+      const lastId = lastTeam.teamId.split("-")[1];
+      newIdNumber = parseInt(lastId, 10) + 1;
+    }
+
+    this.teamId = `TM-${newIdNumber.toString().padStart(3, "0")}`;
+  }
+
+  next();
+});
 
 const Team = mongoose.model<ITeam>("Team", TeamSchema);
 

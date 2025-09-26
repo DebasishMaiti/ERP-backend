@@ -1,8 +1,8 @@
  import Boq from "./Boq.model";
 
-export const createBoq = async (project: String, boqName: String, description:String, notes:String, items:[], status:String)=>{
+export const createBoq = async (project: String, name: String, description:String, notes:String, items:[], status:String)=>{
     const result = await Boq.create({
-        project, boqName, description, notes, items, status
+        project, name, description, notes, items, status
     })
     return result;
 }
@@ -23,7 +23,7 @@ export const getActiveBoq = async ()=>{
     
 }
 export const getBoqById = async (id : String)=>{
-       const result = await Boq.findById(id);
+       const result = await Boq.findOne({boqId:id});
     return result;
 }
 export const updateBoq = async (project: String, boqName: String, description:String, notes:String, items:[], id:String, status:String)=>{

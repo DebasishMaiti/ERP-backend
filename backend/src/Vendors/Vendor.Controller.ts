@@ -34,8 +34,7 @@ export const getVendorsController = async (req: Request, res: Response) => {
  
     const result = await getVendors()
 
-    res.status(200).json({result
-    });
+    res.status(200).json({result:result});
   } catch (error: any) {
     res
       .status(500)
