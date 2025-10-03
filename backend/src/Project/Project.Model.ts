@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 
-const STATUS_TYPES = ["planed", "in progress", "on hold", "completed","deleted"] as const;
+const STATUS_TYPES = ["planned", "in progress", "on hold", "completed","deleted"] as const;
 
 const ProjectSchema = new Schema(
   {
@@ -12,7 +12,7 @@ const ProjectSchema = new Schema(
     status: {
       type: String,
       enum: STATUS_TYPES,
-      default: "planed",
+      default: "planned",
       required: true,
     },
     notes: { type: String, trim: true },

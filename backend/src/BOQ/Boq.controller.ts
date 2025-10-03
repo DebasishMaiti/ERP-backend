@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Boq from "./Boq.model";   
-import { createBoq, getAllBoq, getDraftBoq, getConfirmedBoq, getActiveBoq, getBoqById, updateBoq, deleteBoq,  } from "./Boq.Service";
+import { createBoq, getAllBoq,getBoqByProject, getDraftBoq, getConfirmedBoq, getActiveBoq, getBoqById, updateBoq, deleteBoq,  } from "./Boq.Service";
 import mongoose from "mongoose";
  
 export const createBoqController = async (req: Request, res: Response) => {
@@ -29,6 +29,16 @@ export const getAllBoqsController = async (req: Request, res: Response) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+export const getBoqByProjectController = async(req:Request, res:Response)=>{
+  try {
+
+    const result = await getBoqByProject(req.params.id);
+    res.status(200).json(result);
+  } catch (err:any) {
+    res.status(500).json({ message: err.message });
+  }
+}
 
 export const getDraftBoqsController = async (req: Request, res: Response) => {
   try {
@@ -74,13 +84,13 @@ export const getBoqByIdController = async (req: Request, res: Response) => {
 export const updateBoqController = async (req: Request, res: Response) => {
   try {
     const {id} = req.params;
-    const { project, boqName, description, notes, items, status} = req.body;
+    const { project, name, description, notes, items, status} = req.body;
             
-           if(!project || !boqName || !items){
+           if(!project || !name || !items){
         return res.status(400).json({ message: "Please fill all the fields" });
     }
 
-    const result = await updateBoq(project, boqName, description, notes, items, status, id);
+    const result = await updateBoq(project, name, description, notes, items, status, id);
  
     res.status(200).json(result);
   } catch (err: any) {
@@ -92,9 +102,7 @@ export const updateBoqController = async (req: Request, res: Response) => {
 export const deleteBoqController = async (req: Request, res: Response) => {
   try {
         const {id} = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Invalid vendor ID" });
-         }
+ 
          
         const result = await deleteBoq(id);
  

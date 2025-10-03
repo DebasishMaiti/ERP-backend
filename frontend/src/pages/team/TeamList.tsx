@@ -282,7 +282,7 @@ export default function TeamList() {
                       </div>
                       <div className="flex flex-col gap-2 items-end">
                         <Badge variant={getAccessColor(member)}>{getAccessLevel(member)}</Badge>
-                        <Badge variant={member.status === "Active" ? "default" : "destructive"}>
+                        <Badge variant={member.status === "active" ? "default" : "destructive"}>
                           {member.status}
                         </Badge>
                         {/* {member.permissions && (
@@ -380,11 +380,19 @@ export default function TeamList() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={member.status === "Active" ? "default" : "destructive"}>
+                        <Badge variant={member.status === "active" ? "default" : "destructive"}>
                           {member.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{member.joinDate}</TableCell>
+                      {/* <TableCell className="text-muted-foreground">{member.createdAt}</TableCell> */}
+                      <TableCell className="text-muted-foreground">
+                        {member.createdAt ? new Date(member.createdAt).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        }) : "-"}
+                      </TableCell>
+
                       <TableCell>
                         {(canViewDetails || canManageTeam) && (
                           <div className="flex items-center justify-end gap-2">

@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 
-const STATUS_TYPES = ["draft", "comfirmed", "active", "deleted"] as const;
+const STATUS_TYPES = ["draft", "confirmed", "active", "deleted"] as const;
 
 const BoqSchema = new Schema(
   {

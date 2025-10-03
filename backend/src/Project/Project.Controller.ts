@@ -72,9 +72,7 @@ export const getCompletedProjectsController = async (req: Request, res: Response
  
 export const getProjectByIdController = async (req: Request, res: Response) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid project ID" });
-    }
+ 
     const result = await getProjectById(req.params.id);
     res.status(200).json(result);
   } catch (error) {

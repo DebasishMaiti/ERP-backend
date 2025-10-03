@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,8 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Copy, Trash2, ChevronUp, ChevronDown, Save, Send, X } from "lucide-react";
-import mockData from "@/data/mockData.json";
-import boqData from "@/data/boqData.json";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
@@ -41,17 +40,48 @@ interface IndentLineItem {
   remark: string;
 }
 
+interface Project {
+  _id: string;
+  name: string;
+  // Add other project fields as needed
+}
+
+interface BOQ {
+  _id: string;
+  name:string;
+  project: string;
+  number: string;
+  title: string;
+  status: string;
+  // Add other BOQ fields as needed
+}
+
+interface Item {
+  _id: string;
+  name: string;
+  unit: string;
+  // Add other item fields as needed
+}
+
 export default function IndentCreate() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const items = mockData.items;
-  const projects = mockData.projects;
-  const boqs = boqData.boqs;
+  
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [boqs, setBoqs] = useState<BOQ[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [apiLoading, setApiLoading] = useState({
+    projects: false,
+    boqs: false,
+    items: false,
+    save: false
+  });
 
   // Project selection logic
   const getAvailableProjects = () => {
     if (currentUser.role === "Employee") {
-      return projects.filter(p => currentUser.assignedProjects.includes(p.id));
+      return projects.filter(p => currentUser.assignedProjects.includes(p._id));
     }
     // Purchaser, Admin, Accountant have access to all projects
     return projects;
@@ -68,13 +98,13 @@ export default function IndentCreate() {
   // Form state
   const [indentData, setIndentData] = useState({
     title: "",
-    projectId: autoSelectProject?.id || "",
+    projectId: autoSelectProject?._id || "",
     boqId: "",
     location: "",
     neededBy: "",
     requester: currentUser.name,
     notes: "",
-    status: "Draft"
+    status: "draft"
   });
 
   const [lineItems, setLineItems] = useState<IndentLineItem[]>([]);
@@ -90,6 +120,72 @@ export default function IndentCreate() {
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(itemSearchQuery.toLowerCase())
   );
+
+  // Fetch projects and items on component mount
+  useEffect(() => {
+    fetchProjects();
+    fetchItems();
+  }, []);
+
+  // Fetch BOQs when project changes
+  useEffect(() => {
+    if (indentData.projectId) {
+      fetchBOQsByProject(indentData.projectId);
+    } else {
+      setBoqs([]);
+      setIndentData(prev => ({ ...prev, boqId: "" }));
+    }
+  }, [indentData.projectId]);
+
+  const fetchProjects = async () => {
+    try {
+      setApiLoading(prev => ({ ...prev, projects: true }));
+      const response = await axios.get('http://localhost:8000/api/project');
+      setProjects(response.data);
+      
+      // Auto-select if only one project is available
+      if (response.data.length === 1) {
+        setIndentData(prev => ({ ...prev, projectId: response.data[0]._id }));
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      toast({ description: "Error fetching projects", variant: "destructive" });
+    } finally {
+      setApiLoading(prev => ({ ...prev, projects: false }));
+    }
+  };
+
+  const fetchBOQsByProject = async (projectId: string) => {
+    try {
+      setApiLoading(prev => ({ ...prev, boqs: true }));
+      const response = await axios.get(`http://localhost:8000/api/boq/project/${projectId}`, {
+  headers: {
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+  }
+});
+      setBoqs(response.data);
+    } catch (error) {
+      console.error('Error fetching BOQs:', error);
+      toast({ description: "Error fetching BOQs", variant: "destructive" });
+      setBoqs([]);
+    } finally {
+      setApiLoading(prev => ({ ...prev, boqs: false }));
+    }
+  };
+
+  const fetchItems = async () => {
+    try {
+      setApiLoading(prev => ({ ...prev, items: true }));
+      const response = await axios.get('http://localhost:8000/api/item');
+      setItems(response.data);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      toast({ description: "Error fetching items", variant: "destructive" });
+    } finally {
+      setApiLoading(prev => ({ ...prev, items: false }));
+    }
+  };
 
   // Check if current user can create indents
   if (!currentUser.permissions.canCreateBoQ) {
@@ -107,7 +203,7 @@ export default function IndentCreate() {
   }
 
   // Check project access for Employees
-  if (currentUser.role === "Employee" && availableProjects.length === 0) {
+  if (currentUser.role === "Employee" && availableProjects.length === 0 && !apiLoading.projects) {
     return (
       <div>
         <div className="container mx-auto px-4 py-6">
@@ -135,10 +231,10 @@ export default function IndentCreate() {
     setHasUnsavedChanges(true);
   }, []);
 
-  const addItem = useCallback((item: typeof items[0]) => {
+  const addItem = useCallback((item: Item) => {
     const newItem: IndentLineItem = {
       id: `line-${Date.now()}`,
-      itemId: item.id,
+      itemId: item._id,
       itemName: item.name,
       unit: item.unit,
       quantity: "",
@@ -192,28 +288,77 @@ export default function IndentCreate() {
       toast({ description: "Please add at least one item", variant: "destructive" });
       return false;
     }
+    
+    // Validate line items
+    for (const item of lineItems) {
+      if (!item.quantity || item.quantity <= 0) {
+        toast({ description: `Please enter valid quantity for ${item.itemName}`, variant: "destructive" });
+        return false;
+      }
+    }
+    
     return true;
   };
 
-  const saveDraft = () => {
+  const saveIndent = async (status: "draft" | "compare") => {
     if (!validateForm()) return;
-    
-    toast({ description: "Indent saved as draft successfully" });
-    setHasUnsavedChanges(false);
-    // In real app, save to backend
+
+    try {
+      setApiLoading(prev => ({ ...prev, save: true }));
+      
+      // Prepare items for API
+      const apiItems = lineItems.map(item => ({
+        itemId: item.itemId,
+        quantity: Number(item.quantity),
+        remarks: item.remark
+      }));
+
+      const indentPayload = {
+        title: indentData.title,
+        project: indentData.projectId,
+        boq: indentData.boqId,
+        location: indentData.location,
+        neededBy: indentData.neededBy ? new Date(indentData.neededBy).toISOString() : new Date().toISOString(),
+        requester: indentData.requester,
+        notes: indentData.notes,
+        items: apiItems,
+        status: status,
+        comment: "" // Add comment if needed
+      };
+
+      const response = await axios.post('http://localhost:8000/api/indent', indentPayload);
+
+      toast({ 
+        description: status === "draft" 
+          ? "Indent saved as draft successfully" 
+          : "Indent sent for comparison successfully" 
+      });
+      setHasUnsavedChanges(false);
+      
+      if (status === "compare") {
+        navigate("/indent/list");
+      }
+    } catch (error: any) {
+      console.error('Error saving indent:', error);
+      toast({ 
+        description: error.response?.data?.message || "Error saving indent", 
+        variant: "destructive" 
+      });
+    } finally {
+      setApiLoading(prev => ({ ...prev, save: false }));
+    }
+  };
+
+  const saveDraft = () => {
+    saveIndent("draft");
   };
 
   const sendToCompare = () => {
-    if (!validateForm()) return;
-    
-    toast({ description: "Indent sent for comparison successfully" });
-    setHasUnsavedChanges(false);
-    navigate("/indent/list");
+    saveIndent("compare");
   };
 
   return (
     <div>
-      
       <div className="container mx-auto px-4 py-6 space-y-6">
         {/* Indent Information */}
         <Card>
@@ -237,19 +382,25 @@ export default function IndentCreate() {
                 <Select 
                   value={indentData.projectId} 
                   onValueChange={(value) => updateIndentData("projectId", value)}
-                  disabled={availableProjects.length === 1}
+                  disabled={apiLoading.projects}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select project" />
+                    <SelectValue placeholder={
+                      apiLoading.projects ? "Loading projects..." : 
+                      "Select project"
+                    } />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableProjects.map(project => (
-                      <SelectItem key={project.id} value={project.id}>
+                    {projects.map(project => (
+                      <SelectItem key={project._id} value={project._id}>
                         {project.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {apiLoading.projects && (
+                  <p className="text-sm text-muted-foreground">Loading projects...</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -257,19 +408,27 @@ export default function IndentCreate() {
                 <Select 
                   value={indentData.boqId} 
                   onValueChange={(value) => updateIndentData("boqId", value)}
-                  disabled={!indentData.projectId}
+                  disabled={!indentData.projectId || apiLoading.boqs}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={indentData.projectId ? "Select BOQ" : "Select project first"} />
+                    <SelectValue placeholder={
+                      apiLoading.boqs ? "Loading BOQs..." : 
+                      !indentData.projectId ? "Select project first" : 
+                      availableBOQs.length === 0 ? "No BOQs available" :
+                      "Select BOQ"
+                    } />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableBOQs.map(boq => (
-                      <SelectItem key={boq.id} value={boq.id}>
-                        {boq.number} - {boq.title}
+                    {boqs.map(boq => (
+                      <SelectItem key={boq._id} value={boq._id}>
+                         {boq.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {apiLoading.boqs && (
+                  <p className="text-sm text-muted-foreground">Loading BOQs...</p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -322,9 +481,10 @@ export default function IndentCreate() {
             <CardTitle>Indent Items</CardTitle>
             <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button disabled={apiLoading.items}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Item
+                  {apiLoading.items && " (Loading...)"}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
@@ -342,19 +502,29 @@ export default function IndentCreate() {
                     />
                   </div>
                   <div className="max-h-60 overflow-y-auto">
-                    {filteredItems.map(item => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted"
-                        onClick={() => addItem(item)}
-                      >
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-muted-foreground">Unit: {item.unit}</p>
-                        </div>
-                        <Button size="sm">Add</Button>
+                    {apiLoading.items ? (
+                      <div className="text-center py-4 text-muted-foreground">
+                        Loading items...
                       </div>
-                    ))}
+                    ) : filteredItems.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground">
+                        {itemSearchQuery ? "No items found" : "No items available"}
+                      </div>
+                    ) : (
+                      filteredItems.map(item => (
+                        <div
+                          key={item._id}
+                          className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted"
+                          onClick={() => addItem(item)}
+                        >
+                          <div>
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-sm text-muted-foreground">Unit: {item.unit}</p>
+                          </div>
+                          <Button size="sm">Add</Button>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </DialogContent>
@@ -437,7 +607,7 @@ export default function IndentCreate() {
         <div className="flex justify-between">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="outline" disabled={!hasUnsavedChanges}>
+              <Button variant="outline" disabled={!hasUnsavedChanges || apiLoading.save}>
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
@@ -459,13 +629,13 @@ export default function IndentCreate() {
           </AlertDialog>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={saveDraft}>
+            <Button variant="outline" onClick={saveDraft} disabled={apiLoading.save}>
               <Save className="w-4 h-4 mr-2" />
-              Save Draft
+              {apiLoading.save ? "Saving..." : "Save Draft"}
             </Button>
-            <Button onClick={sendToCompare}>
+            <Button onClick={sendToCompare} disabled={apiLoading.save}>
               <Send className="w-4 h-4 mr-2" />
-              Send for Comparison
+              {apiLoading.save ? "Sending..." : "Send for Comparison"}
             </Button>
           </div>
         </div>

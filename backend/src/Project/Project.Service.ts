@@ -49,7 +49,7 @@ export const getCompletedProject = async () => {
 };
  
 export const getProjectById = async (id: string) => {
-  const result = await Project.findById(id);
+  const result = await Project.findOne({projectCode:id});
   return result;
 };
 

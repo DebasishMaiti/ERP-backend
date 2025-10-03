@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Eye, Edit, Plus, Search, Filter, RotateCcw, Users, FileText, ShoppingCart, AlertTriangle, Calendar } from "lucide-react";
+import axios from "axios";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
@@ -61,26 +62,20 @@ export default function ProjectList() {
     const fetchProjects = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:8000/api/project', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        const response = await axios.get('http://localhost:8000/api/project');
+        console.log(response);
+        
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch projects');
-        }
+      
 
-        const data = await response.json();
-        // Assuming API returns projects in the expected format
-        // If API structure is different, we'll need to transform the data
+        const data = await response.data;
+ 
         setProjects(data.map((project: any) => ({
           ...project,
-          // Mock boqCount and poCount as API might not provide these
+       
           boqCount: Math.floor(Math.random() * 5),
           poCount: Math.floor(Math.random() * 3),
-          // Mock assigned members until we have actual team data from API
+ 
           assignedMembers: teamMembers.slice(0, Math.floor(Math.random() * 4) + 1)
         })));
         setIsLoading(false);

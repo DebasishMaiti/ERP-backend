@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,13 +12,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Search, Filter, Plus, Eye, Edit, Trash2 } from "lucide-react";
 import { service } from "@/shared/_services/api_service";
 
-import boqData from "../../data/boqData.json";
-
-const mockProjects = [
-  { id: "PRJ-001", name: "Office Building Phase 1" },
-  { id: "PRJ-002", name: "Residential Complex" },
-  { id: "PRJ-003", name: "Shopping Mall" }
-];
+ 
 
 export default function BOQList() {
   const navigate = useNavigate();
@@ -26,21 +21,40 @@ export default function BOQList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [boqs, setBoqs] = useState([])
+  const [boqs, setBoqs] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(()=>{
-    const getBoq = async ()=>{
-    const res = await service.getAllBoq()
-    setBoqs(res.data || [])
-    
-    }
-    getBoq()
-  },[])
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch projects
+        const projectsResponse = await axios.get("http://localhost:8000/api/project");
+        setProjects(projectsResponse.data || []);
+        
+        // Fetch BOQs
+        const boqsResponse = await service.getAllBoq();
+        setBoqs(boqsResponse.data || []);
+        console.log(boqsResponse.data);
+        
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setProjects([]);
+        setBoqs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const filteredBOQs = boqs.filter(boq => {
     const matchesSearch = 
-                         boq.project.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         boq.id.toLowerCase().includes(searchTerm.toLowerCase());
+                         boq.project?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         boq.id?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesProject = !selectedProject || selectedProject === "all" || boq.project === selectedProject;
     const matchesStatus = !selectedStatus || selectedStatus === "all" || boq.status === selectedStatus;
     
@@ -51,8 +65,8 @@ export default function BOQList() {
     return status === "Confirmed" ? "default" : "secondary";
   };
 
-  const canEdit = (boq: any) => boq.status === "Draft";
-  const canDelete = (boq: any) => boq.status === "Draft"; // Add logic for no indents
+  const canEdit = (boq: any) => boq.status === "draft";
+  const canDelete = (boq: any) => boq.status === "draft"; // Add logic for no indents
 
   const handleView = (boqId: string) => {
     navigate(`/boq/${boqId}`);
@@ -91,7 +105,7 @@ export default function BOQList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
-                  {mockProjects.map(project => (
+                  {projects.map(project => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
                     </SelectItem>
@@ -129,7 +143,7 @@ export default function BOQList() {
                 </div>
 
                 <div className="text-sm space-y-1">
-                  <p><span className="font-medium">Project:</span> {mockProjects.find(p => p.id === boq.project)?.name}</p>
+                  <p><span className="font-medium">Project:</span> {projects.find(p => p.id === boq.project)?.name}</p>
                   <p><span className="font-medium">Items:</span> {boq.itemCount}</p>
                   <p><span className="font-medium">Created:</span> {boq.createdOn}</p>
                   <p><span className="font-medium">By:</span> {boq.createdBy}</p>
@@ -203,8 +217,8 @@ export default function BOQList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Projects</SelectItem>
-                {mockProjects.map(project => (
-                  <SelectItem key={project.id} value={project.id}>
+                {projects.map(project => (
+                  <SelectItem key={project._id} value={project._id}>
                     {project.name}
                   </SelectItem>
                 ))}
@@ -243,11 +257,11 @@ export default function BOQList() {
             </TableHeader>
             <TableBody>
               {filteredBOQs.map((boq) => (
-                <TableRow key={boq.id}>
+                <TableRow key={boq.boqId}>
                   <TableCell>
               <div>
-                <div className="font-medium">{boq.title}</div>
-                <div className="text-sm text-muted-foreground">{boq.number}</div>
+                <div className="font-medium">{boq.name}</div>
+                <div className="text-sm text-muted-foreground">{boq.boqId}</div>
               </div>
                   </TableCell>
                   <TableCell>
@@ -256,7 +270,7 @@ export default function BOQList() {
                       className="p-0 h-auto"
                       onClick={() => navigate(`/team/projects/${boq.project}`)}
                     >
-                      {mockProjects.find(p => p.id === boq.project)?.name}
+                      {projects.find(p => p.id === boq.project)?.name}
                     </Button>
                   </TableCell>
                   <TableCell>
@@ -273,7 +287,7 @@ export default function BOQList() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => handleView(boq.id)}
+                        onClick={() => handleView(boq.boqId)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -282,7 +296,7 @@ export default function BOQList() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          onClick={() => handleEdit(boq.id)}
+                          onClick={() => handleEdit(boq.boqId)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -292,7 +306,7 @@ export default function BOQList() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          onClick={() => handleDelete(boq.id)}
+                          onClick={() => handleDelete(boq.boqId)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -307,4 +321,4 @@ export default function BOQList() {
       </Card>
     </div>
   );
-}    
+}
