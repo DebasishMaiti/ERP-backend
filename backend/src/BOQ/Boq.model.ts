@@ -15,6 +15,7 @@ const BoqSchema = new Schema(
     description: { type: String, trim: true },
     notes: { type: String, trim: true },
     status: { type: String, enum: STATUS_TYPES },
+    projectName:{type:String},
     items: [
       {
         item: {

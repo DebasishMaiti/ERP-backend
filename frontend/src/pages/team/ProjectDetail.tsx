@@ -6,7 +6,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Edit, Calendar, MapPin, AlertTriangle, Users, FileText, Eye, Edit2, Trash2 } from "lucide-react";
-import mockData from "@/data/mockData.json";
+import { useEffect, useState } from "react";
+import axios from "axios";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
@@ -20,38 +21,169 @@ const currentUser = {
     canAssignTeam: true // Admin only: true
   }
 };
+
+// Types
+interface Project {
+  id: string;
+  name: string;
+  startDate?: string;
+  targetCompletionDate?: string;
+  location?: string;
+  description?: string;
+  status?: string;
+  teamMembers?: string[]; // Array of team member IDs
+}
+
+interface BOQ {
+  id: string;
+  number: string;
+  title: string;
+  project: string;
+  status: string;
+  itemCount: number;
+  totalValue: number;
+  createdBy: string;
+  createdOn: string;
+}
+
+interface TeamMember {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  isAdmin?: boolean;
+  permissions?: {
+    projects?: string[];
+    modules?: any;
+  };
+}
+
 export default function ProjectDetail() {
   const navigate = useNavigate();
-  const {
-    id
-  } = useParams();
+  const { id } = useParams();
   const isMobile = useIsMobile();
+  
+  const [project, setProject] = useState<Project | null>(null);
+  const [projectBoqs, setProjectBoqs] = useState<BOQ[]>([]);
+  const [projectTeamMembers, setProjectTeamMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Find the project
-  const project = mockData.projects.find(p => p.id === id);
-  if (!project) {
-    return <div>
-        <div className="container mx-auto px-4 py-6">
-          <Card>
-            <CardContent className="text-center py-8">
-              <p className="text-muted-foreground">Please check the project ID and try again.</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>;
-  }
+  // Function to fetch team members by their IDs
+  const fetchTeamMembers = async (teamMemberIds: string[]) => {
+    try {
+      const teamMembersPromises = teamMemberIds.map(async (memberId) => {
+        try {
+          const response = await axios.get(`http://localhost:8000/api/team/byId/${memberId}`);
+          return response.data;
+        } catch (error) {
+          console.error(`Error fetching team member ${memberId}:`, error);
+          return null;
+        }
+      });
 
-  // Get project BOQs - handle both PRJ-001 format and 001 format
-  const projectId = id?.startsWith('PRJ-') ? id : `PRJ-${id?.padStart(3, '0')}`;
-  const projectBoqs = mockData.boqs.filter(boq => boq.project === projectId);
+      const teamMembersData = await Promise.all(teamMembersPromises);
+      const validTeamMembers = teamMembersData.filter(member => member !== null) as TeamMember[];
+      
+      setProjectTeamMembers(validTeamMembers);
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      setProjectTeamMembers([]);
+    }
+  };
 
-  // Get indents count for each BOQ (mock data for now)
+  // Function to fetch BOQs for the project
+  const fetchProjectBOQs = async (projectId: string) => {
+    try {
+      const response = await axios.get(`http://localhost:8000/api/boq/project/${projectId}`);
+      const boqsData = response.data;
+      console.log(boqsData,'ghg');
+      
+      // Transform the API response to match our BOQ interface
+      const formattedBoqs: BOQ[] = boqsData.map((boq: any) => ({
+        id: boq._id || boq.id,
+        number: boq.boqNumber || boq.number || `BOQ-${boq._id}`,
+        title: boq.name || boq.boqTitle || 'Untitled BOQ',
+        project: boq.project || projectId,
+        status: boq.status || 'Draft',
+        itemCount: boq.items ? boq.items.length : 0,
+        totalValue: boq.totalValue || boq.totalAmount || 0,
+        createdBy: boq.createdBy || boq.creator?.name || 'Unknown',
+        createdOn: boq.createdAt || boq.createdOn || new Date().toISOString()
+      }));
+      
+      setProjectBoqs(formattedBoqs);
+    } catch (error) {
+      console.error('Error fetching BOQs:', error);
+      // If API fails, set empty array instead of showing error for BOQs
+      setProjectBoqs([]);
+    }
+  };
+
+  // Fetch project data, team members and BOQs from API
+  useEffect(() => {
+    const fetchProjectData = async () => {
+      if (!id) {
+        setError("Project ID is required");
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        setError(null);     
+        
+        // Fetch project details using Axios
+        const response = await axios.get(`http://localhost:8000/api/project/${id}`);
+        const projectData = response.data;
+        const projectId = projectData._id;
+        
+        // Ensure the project has the correct ID format for display
+        const formattedProject = {
+          ...projectData,
+    
+        };
+        
+        setProject(formattedProject);
+
+        // Fetch team members if project has team member IDs
+        if (projectData.employees && projectData.employees.length > 0) {
+          await fetchTeamMembers(projectData.employees);
+        } else {
+          setProjectTeamMembers([]);
+        }
+
+        // Fetch BOQs for this project using the real API
+        await fetchProjectBOQs(projectId);
+
+      } catch (error) {
+        console.error('Error fetching project:', error);
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 404) {
+            setError('Project not found');
+          } else {
+            setError(`Failed to load project: ${error.response?.data?.message || error.message}`);
+          }
+        } else {
+          setError('An unexpected error occurred');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjectData();
+  }, [id]);
+
+  // Get indents count for each BOQ (mock data for now since we don't have indent API)
   const getIndentsCount = (boqId: string) => {
     // Mock indents count based on BOQ status and ID
-    if (boqId === "BOQ-001") return 3;
-    if (boqId === "BQ-0021") return 0;
+    // In a real app, you would fetch this from an API
+    if (boqId.includes("001")) return 3;
+    if (boqId.includes("002")) return 0;
     return Math.floor(Math.random() * 4); // Random for demo
   };
+
   const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
       case 'confirmed':
@@ -66,9 +198,6 @@ export default function ProjectDetail() {
     }
   };
 
-  // Get project team members (in real app, this would come from project team data)
-  const projectTeamMembers = mockData.teamMembers.filter(member => !member.isAdmin // For demo, showing non-admin members
-  );
   const getStatusColor = (status: string | undefined) => {
     if (!status) return 'outline';
     switch (status.toLowerCase()) {
@@ -84,6 +213,64 @@ export default function ProjectDetail() {
         return 'outline';
     }
   };
+
+  // Helper function to get display name for team member role
+  const getRoleDisplayName = (role: string) => {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return 'Admin';
+      case 'employee':
+        return 'Employee';
+      case 'purchaser':
+        return 'Purchaser';
+      case 'accountant':
+        return 'Accountant';
+      default:
+        return role || 'Employee';
+    }
+  };
+
+  // Helper function to check if team member is admin based on role
+  const isTeamMemberAdmin = (member: TeamMember) => {
+    return member.role?.toLowerCase() === 'admin';
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className={`container mx-auto ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`}>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-4 text-muted-foreground">Loading project details...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !project) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className={`container mx-auto ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`}>
+          <Card>
+            <CardContent className="text-center py-8">
+              <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Project Not Found</h3>
+              <p className="text-muted-foreground mb-4">{error || "Please check the project ID and try again."}</p>
+              <Button onClick={() => navigate(-1)}>
+                Go Back
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className={`container mx-auto ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`}>
@@ -123,7 +310,7 @@ export default function ProjectDetail() {
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Target Completion</p>
                     <p className={`font-medium ${isMobile ? 'text-sm' : ''} truncate`}>
-                      {project.endDate ? new Date(project.endDate).toLocaleDateString() : 'Not set'}
+                      {project.targetCompletionDate ? new Date(project.targetCompletionDate).toLocaleDateString() : 'Not set'}
                     </p>
                   </div>
                 </div>
@@ -146,17 +333,40 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
 
-            
+            <Card>
+              <CardContent className={isMobile ? "p-4" : "pt-6"}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 bg-primary/10 rounded-lg ${isMobile ? 'flex-shrink-0' : ''}`}>
+                    <AlertTriangle className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant={getStatusColor(project.status)} className="mt-1">
+                      {project.status || 'Not specified'}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Project Description */}
-          {/* {project.description} */}
+          {project.description && (
+            <Card>
+              <CardHeader className={isMobile ? "p-4 pb-2" : ""}>
+                <CardTitle className={isMobile ? "text-base" : ""}>Description</CardTitle>
+              </CardHeader>
+              <CardContent className={isMobile ? "p-4 pt-0" : ""}>
+                <p className="text-sm text-muted-foreground">{project.description}</p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Assigned Team Members */}
           <Card>
             <CardHeader className={isMobile ? "p-4 pb-2" : ""}>
               <div className="flex items-center gap-2">
-                {/* <Users className="h-4 w-4" /> */}
+                <Users className="h-4 w-4" />
                 <CardTitle className={isMobile ? "text-base" : ""}>Team Members</CardTitle>
               </div>
               {!isMobile && (
@@ -179,7 +389,7 @@ export default function ProjectDetail() {
               ) : isMobile ? (
                 <div className="space-y-3">
                   {projectTeamMembers.map(member => (
-                    <Card key={member.id} className="border-l-primary/20">
+                    <Card key={member._id} className="border-l-primary/20">
                       <CardContent className="p-3">
                         <div className="flex items-center gap-3 mb-2">
                           <Avatar className="h-8 w-8">
@@ -193,9 +403,9 @@ export default function ProjectDetail() {
                           </div>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Access Level:</span>
-                          <Badge variant="outline" className="text-xs">
-                            {member.isAdmin ? "Admin" : `${member.permissions?.projects?.length || 0}P/${Object.values(member.permissions?.modules || {}).filter((m: any) => m.read || m.write).length}M`}
+                          <span className="text-xs text-muted-foreground">Role:</span>
+                          <Badge variant={isTeamMemberAdmin(member) ? "default" : "outline"} className="text-xs">
+                            {getRoleDisplayName(member.role)}
                           </Badge>
                         </div>
                       </CardContent>
@@ -212,7 +422,8 @@ export default function ProjectDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectTeamMembers.map(member => <TableRow key={member.id}>
+                    {projectTeamMembers.map(member => (
+                      <TableRow key={member._id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8">
@@ -225,11 +436,12 @@ export default function ProjectDetail() {
                         </TableCell>
                         <TableCell>{member.email}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">
-                            {member.isAdmin ? "Admin" : `${member.permissions?.projects?.length || 0}P/${Object.values(member.permissions?.modules || {}).filter((m: any) => m.read || m.write).length}M`}
+                          <Badge variant={isTeamMemberAdmin(member) ? "default" : "outline"}>
+                            {getRoleDisplayName(member.role)}
                           </Badge>
                         </TableCell>
-                      </TableRow>)}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               )}
@@ -240,7 +452,7 @@ export default function ProjectDetail() {
           <Card>
             <CardHeader className={isMobile ? "p-4 pb-2" : ""}>
               <div className="flex items-center gap-2">
-                {/* <FileText className="h-4 w-4" /> */}
+                <FileText className="h-4 w-4" />
                 <CardTitle className={isMobile ? "text-base" : ""}>BoQs</CardTitle>
               </div>
               {!isMobile && (
@@ -272,7 +484,7 @@ export default function ProjectDetail() {
                               <p className="text-xs text-muted-foreground truncate">{boq.title}</p>
                             </div>
                             <Badge 
-                              variant={boq.status === "Approved" ? "default" : boq.status === "Compare" ? "secondary" : "outline"}
+                              variant={getStatusVariant(boq.status)}
                               className="text-xs flex-shrink-0"
                             >
                               {boq.status}
@@ -347,7 +559,8 @@ export default function ProjectDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {projectBoqs.map(boq => <TableRow key={boq.id}>
+                    {projectBoqs.map(boq => (
+                      <TableRow key={boq.id}>
                         <TableCell>
                           <div>
                             <div className="font-medium">{boq.title}</div>
@@ -373,17 +586,20 @@ export default function ProjectDetail() {
                             <Button variant="ghost" size="sm" onClick={() => navigate(`/boq/detail/${boq.id}`)}>
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {boq.status === 'Draft' && <>
+                            {boq.status === 'Draft' && (
+                              <>
                                 <Button variant="ghost" size="sm" onClick={() => navigate(`/boq/edit/${boq.id}`)}>
                                   <Edit2 className="h-4 w-4" />
                                 </Button>
                                 <Button variant="ghost" size="sm" onClick={() => console.log('Delete BOQ:', boq.id)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
-                              </>}
+                              </>
+                            )}
                           </div>
                         </TableCell>
-                      </TableRow>)}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               )}

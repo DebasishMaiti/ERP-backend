@@ -33,6 +33,7 @@ interface TeamMember {
 interface Project {
   id: string;
   name: string;
+  projectCode:string;
   location: string;
   startDate: string;
   endDate: string;
@@ -431,7 +432,7 @@ export default function ProjectList() {
                         <Eye className="h-3 w-3 mr-1" />
                         Open
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleProjectTeam(project.id)}>
+                      <Button size="sm" variant="outline" onClick={() => handleProjectTeam(project._id)}>
                         <Users className="h-3 w-3 mr-1" />
                         Team
                       </Button>
@@ -466,7 +467,7 @@ export default function ProjectList() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{project.name}</div>
-                        <div className="text-sm text-muted-foreground">{project.id}</div>
+                        <div className="text-sm text-muted-foreground">{project.projectCode}</div>
                       </div>
                     </TableCell>
                     <TableCell>{project.location}</TableCell>
@@ -518,16 +519,16 @@ export default function ProjectList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleViewProject(project.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleViewProject(project.projectCode)}>
                           <Eye className="h-3 w-3 mr-1" />
                           Open
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleProjectTeam(project.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleProjectTeam(project.projectCode)}>
                           <Users className="h-3 w-3 mr-1" />
                           Team
                         </Button>
                         {canManageProjects && (
-                          <Button size="sm" variant="outline" onClick={() => handleEditProject(project.id)}>
+                          <Button size="sm" variant="outline" onClick={() => handleEditProject(project.projectCode)}>
                             <Edit className="h-3 w-3" />
                           </Button>
                         )}

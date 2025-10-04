@@ -16,7 +16,6 @@ export const createTeam = async (
     notes,
     permissions,
   });
-  console.log("xsxsx",result);
   
   return result;
 };
@@ -35,8 +34,13 @@ export const getInactiveTeam = async ()=>{
      
 };
 
-export const getTeamById = async (id:String)=>{
+export const getTeamByTeamId = async (id:String)=>{
     const result = await Team.findOne({teamId:id});
+    return result;
+};
+
+export const getTeamById = async (id:String)=>{
+    const result = await Team.findById(id);
     return result;
 };
 

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
  
-import {createTeam, getAllTeam, getActiveTeam, getInactiveTeam, getTeamById, updateTeam, deleteTeam} from "./Team.Service"
+import {createTeam, getAllTeam, getActiveTeam, getInactiveTeam, getTeamByTeamId,getTeamById, updateTeam, deleteTeam} from "./Team.Service"
 import mongoose from "mongoose";
 
 
@@ -56,6 +56,16 @@ export const getInctiveTeamController = async (req:Request, res:Response)=>{
     res.status(500).json({ message: "Error fetching active users", error });
   }
 }
+
+export const getTeamByTeamIdController = async (req: Request, res: Response) => {
+  try {
+      
+        const result = await getTeamByTeamId(req.params.id);
+        res.status(200).json(result);
+  } catch (error: any) {
+    res.status(500).json({ message: "Error fetching users", error: error.message });
+  }
+};
 
 export const getTeamByIdController = async (req: Request, res: Response) => {
   try {

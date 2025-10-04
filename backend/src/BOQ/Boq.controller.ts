@@ -5,14 +5,14 @@ import mongoose from "mongoose";
  
 export const createBoqController = async (req: Request, res: Response) => {
   try {
-    const { project, name, description, notes, items, status} = req.body;
+    const { project, name, description, notes, items, status,projectName} = req.body;
     console.log(req.body);
     
     if(!project || !name || !description || !items){
         return res.status(400).json({ message: "Please fill all the fields" });
     }
  
-    const result = await createBoq(project, name, description, notes, items, status);
+    const result = await createBoq(project, name, description, notes, items, status,projectName);
 
     res.status(201).json(result);
   } catch (err: any) {

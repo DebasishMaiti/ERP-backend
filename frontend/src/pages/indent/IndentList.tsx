@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Search, Filter, RotateCcw, Plus, Eye, Bell, History, FileText } from "lucide-react";
-import mockData from "@/data/mockData.json";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
@@ -29,8 +28,10 @@ const currentUser = {
 
 export default function BoQList() {
   const navigate = useNavigate();
-  const boqs = mockData.boqs;
-  const projects = mockData.projects || [];
+  const [boqs, setBoqs] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const isMobile = useIsMobile();
   
   // Search and filter state
@@ -40,6 +41,43 @@ export default function BoQList() {
   const [sortBy, setSortBy] = useState("lastUpdate");
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("http://localhost:8000/api/indent");
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Assuming the API returns an array of indents/boqs
+        // You might need to adjust this mapping based on your actual API response structure
+        setBoqs(data.indents || data || []);
+        
+        // Extract unique projects from the boqs data
+        // If you have a separate projects API, you can call it here instead
+        const uniqueProjects = [...new Set((data.indents || data || []).map(boq => boq.project))].map(projectId => ({
+          id: projectId,
+          name: projectId // You might want to fetch actual project names from another API
+        }));
+        
+        setProjects(uniqueProjects);
+        
+      } catch (err) {
+        setError(err.message);
+        console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Create project mapping for ID to name conversion
   const projectMap = useMemo(() => {
@@ -72,10 +110,10 @@ export default function BoQList() {
       
       // Search filter
       const matchesSearch = searchQuery === "" || 
-        boq.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        boq.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        boq.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        boq.createdBy.toLowerCase().includes(searchQuery.toLowerCase());
+        (boq.number && boq.number.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (boq.title && boq.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (boq.project && boq.project.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (boq.createdBy && boq.createdBy.toLowerCase().includes(searchQuery.toLowerCase()));
       
       // Status filter
       const matchesStatus = statusFilter === "all" || boq.status === statusFilter;
@@ -90,18 +128,18 @@ export default function BoQList() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "lastUpdate":
-          return new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime();
+          return new Date(b.lastUpdate || b.updatedAt || b.createdAt).getTime() - new Date(a.lastUpdate || a.updatedAt || a.createdAt).getTime();
         case "createdOn":
-          return new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime();
+          return new Date(b.createdOn || b.createdAt).getTime() - new Date(a.createdOn || a.createdAt).getTime();
         case "number":
-          return a.number.localeCompare(b.number);
+          return (a.number || "").localeCompare(b.number || "");
         default:
           return 0;
       }
     });
 
     return filtered;
-  }, [boqs, searchQuery, statusFilter, sortBy]);
+  }, [boqs, searchQuery, statusFilter, sortBy, projectFilter]);
 
   // Pagination
   const totalPages = Math.ceil(filteredBoqs.length / itemsPerPage);
@@ -131,7 +169,6 @@ export default function BoQList() {
           variant="outline"
           onClick={() => navigate(`/indent/edit/${boq.id}`)}
         >
-          
           Open
         </Button>
       );
@@ -143,7 +180,6 @@ export default function BoQList() {
           variant="outline"
           onClick={() => navigate(`/indent/${boq.id}`)}
         >
-          
           View
         </Button>
       );
@@ -162,9 +198,39 @@ export default function BoQList() {
 
   const hasActiveFilters = searchQuery !== "" || statusFilter !== "all" || projectFilter !== "all";
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p>Loading BoQs...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center py-12">
+          <div className="bg-destructive/10 rounded-lg p-8 shadow-card">
+            <h3 className="text-lg font-semibold text-destructive mb-2">Error Loading Data</h3>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      
       <div className="container mx-auto px-4 py-6">
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
@@ -338,11 +404,11 @@ export default function BoQList() {
                     <CardHeader className="p-3 pb-2">
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle className="text-base">{boq.number}</CardTitle>
-                          <p className="text-xs text-muted-foreground">{boq.title}</p>
+                          <CardTitle className="text-base">{boq.number || "N/A"}</CardTitle>
+                          <p className="text-xs text-muted-foreground">{boq.title || "No title"}</p>
                         </div>
                         <Badge variant={getStatusVariant(boq.status)} className="text-xs">
-                          {boq.status}
+                          {boq.status || "Unknown"}
                         </Badge>
                       </div>
                     </CardHeader>
@@ -350,31 +416,37 @@ export default function BoQList() {
                         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <div>
                             <span className="text-muted-foreground">Project:</span>
-                            <div className="font-medium">{projectMap.get(boq.project) || boq.project}</div>
+                            <div className="font-medium">{projectMap.get(boq.project) || boq.project || "N/A"}</div>
                           </div>
                          <div>
                            <span className="text-muted-foreground">Items:</span>
-                           <div className="font-medium">{boq.itemCount}</div>
+                           <div className="font-medium">{boq.itemCount || 0}</div>
                          </div>
                          <div>
                            <span className="text-muted-foreground">Created by:</span>
-                           <div className="font-medium">{boq.createdBy}</div>
+                           <div className="font-medium">{boq.createdBy || "Unknown"}</div>
                          </div>
                          <div>
                            <span className="text-muted-foreground">Created:</span>
-                           <div className="font-medium">{new Date(boq.createdOn).toLocaleDateString()}</div>
+                           <div className="font-medium">
+                             {boq.createdOn || boq.createdAt ? new Date(boq.createdOn || boq.createdAt).toLocaleDateString() : "N/A"}
+                           </div>
                          </div>
                        </div>
                       
                       {currentUser.permissions.canViewPrices && (
                         <div className="pt-1 border-t">
                           <span className="text-xs text-muted-foreground">Total Value:</span>
-                          <div className="text-sm font-semibold">₹{boq.totalValue.toLocaleString()}</div>
+                          <div className="text-sm font-semibold">
+                            ₹{(boq.totalValue || 0).toLocaleString()}
+                          </div>
                         </div>
                       )}
 
                       <div className="pt-1 border-t">
-                        <div className="text-xs text-muted-foreground mb-1">Next Step: {boq.nextStep}</div>
+                        <div className="text-xs text-muted-foreground mb-1">
+                          Next Step: {boq.nextStep || "No next step defined"}
+                        </div>
                         <div className="flex gap-1 flex-wrap">
                           {getNextStepActions(boq)}
                         </div>
@@ -405,34 +477,42 @@ export default function BoQList() {
                       <TableRow key={boq.id}>
                          <TableCell>
                            <div>
-                             <div className="font-medium">{boq.number}</div>
-                             <div className="text-sm text-muted-foreground">{boq.title}</div>
+                             <div className="font-medium">{boq.number || "N/A"}</div>
+                             <div className="text-sm text-muted-foreground">{boq.title || "No title"}</div>
                              {currentUser.permissions.canViewPrices && (
                                <div className="text-sm font-medium text-primary">
-                                 ₹{boq.totalValue.toLocaleString()}
+                                 ₹{(boq.totalValue || 0).toLocaleString()}
                                </div>
                              )}
                            </div>
                          </TableCell>
                           <TableCell>
-                            <span className="font-medium text-sm">{projectMap.get(boq.project) || boq.project}</span>
+                            <span className="font-medium text-sm">
+                              {projectMap.get(boq.project) || boq.project || "N/A"}
+                            </span>
                           </TableCell>
-                         <TableCell>{new Date(boq.createdOn).toLocaleDateString()}</TableCell>
-                        <TableCell>{boq.createdBy}</TableCell>
+                         <TableCell>
+                           {boq.createdOn || boq.createdAt ? new Date(boq.createdOn || boq.createdAt).toLocaleDateString() : "N/A"}
+                         </TableCell>
+                        <TableCell>{boq.createdBy || "Unknown"}</TableCell>
                         <TableCell>
                           <div className="text-center">
-                            <Badge variant="outline">{boq.itemCount}</Badge>
+                            <Badge variant="outline">{boq.itemCount || 0}</Badge>
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant={getStatusVariant(boq.status)}>
-                            {boq.status}
+                            {boq.status || "Unknown"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {boq.nextStep}
+                          {boq.nextStep || "No next step defined"}
                         </TableCell>
-                        <TableCell>{new Date(boq.lastUpdate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          {boq.lastUpdate || boq.updatedAt || boq.createdAt ? 
+                            new Date(boq.lastUpdate || boq.updatedAt || boq.createdAt).toLocaleDateString() : "N/A"
+                          }
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             {getNextStepActions(boq)}

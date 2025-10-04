@@ -55,7 +55,7 @@ export default function BOQCreate() {
       itemId: "",
       plannedQuantity: 0,
       unit: "",
-      rate: undefined
+      rate: undefined,
     };
     setEstimateItems([...estimateItems, newItem]);
   };
@@ -95,7 +95,7 @@ export default function BOQCreate() {
       items: estimateItems.map(item => ({
         item: item.itemId,
         plannedQty: item.plannedQuantity,
-        unit: 10,
+        unit: item.unit,
         rate: item.rate || null
       }))
     };
@@ -120,7 +120,7 @@ const handleSendAndConfirm = async () => {
       name: boqName,
       description,
       notes,
-      status: "comfirmed",
+      status: "confirmed",
       items: estimateItems.map(item => ({
         item: item.itemId,
         plannedQty: item.plannedQuantity,
@@ -141,24 +141,25 @@ const handleSendAndConfirm = async () => {
 };
 
 
-  const updateEstimateItem = (id: string, field: keyof EstimateItem, value: any) => {
-    setEstimateItems(estimateItems.map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        
-        // Auto-fill unit when item is selected
-        if (field === 'itemId' && value) {
-          const selectedItem = mockItems.find(i => i.id === value);
-          if (selectedItem) {
-            updatedItem.unit = selectedItem.unit;
-          }
+const updateEstimateItem = (id: string, field: keyof EstimateItem, value: any) => {
+  setEstimateItems(estimateItems.map(item => {
+    if (item.id === id) {
+      const updatedItem = { ...item, [field]: value };
+
+      // Auto-fill unit when item is selected
+      if (field === 'itemId' && value) {
+        const selectedItem = mockItems.find((i: any) => i._id === value); // <-- FIX HERE
+        if (selectedItem) {
+          updatedItem.unit = selectedItem.unit;
         }
-        
-        return updatedItem;
       }
-      return item;
-    }));
-  };
+
+      return updatedItem;
+    }
+    return item;
+  }));
+};
+
 
   const validateForm = () => {
     if (!selectedProject) {

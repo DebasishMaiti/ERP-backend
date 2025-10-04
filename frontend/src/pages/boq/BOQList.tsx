@@ -270,7 +270,7 @@ export default function BOQList() {
                       className="p-0 h-auto"
                       onClick={() => navigate(`/team/projects/${boq.project}`)}
                     >
-                      {projects.find(p => p.id === boq.project)?.name}
+                      {projects.find(p => p._id === boq.project)?.name}
                     </Button>
                   </TableCell>
                   <TableCell>
@@ -280,7 +280,16 @@ export default function BOQList() {
                   </TableCell>
                   <TableCell>{boq.itemCount}</TableCell>
                   <TableCell>{boq.indents?.length || 0}</TableCell>
-                  <TableCell>{boq.createdOn}</TableCell>
+                  <TableCell>
+                    {boq.createdAt
+                      ? new Date(boq.createdAt).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "-"}
+                  </TableCell>
+
                   <TableCell>{boq.createdBy}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">

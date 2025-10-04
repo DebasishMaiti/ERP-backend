@@ -1,8 +1,8 @@
  import Boq from "./Boq.model";
 
-export const createBoq = async (project: string, name: string, description:string, notes:string, items:[], status:string)=>{
+export const createBoq = async (project: string, name: string, description:string, notes:string, items:[], status:string,projectName:string)=>{
     const result = await Boq.create({
-        project, name, description, notes, items, status
+        project, name, description, notes, items, status, projectName
     })
     return result;
 }
