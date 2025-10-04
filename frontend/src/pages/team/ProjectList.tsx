@@ -432,7 +432,7 @@ export default function ProjectList() {
                         <Eye className="h-3 w-3 mr-1" />
                         Open
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleProjectTeam(project._id)}>
+                      <Button size="sm" variant="outline" onClick={() => handleProjectTeam(project.id)}>
                         <Users className="h-3 w-3 mr-1" />
                         Team
                       </Button>
