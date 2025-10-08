@@ -2,7 +2,6 @@ import { Capacitor } from '@capacitor/core';
 import { Toast as CapacitorToast } from '@capacitor/toast';
 import { toast } from 'sonner';
 
-
 const platform = Capacitor.getPlatform();
 
 let toastActive = false;

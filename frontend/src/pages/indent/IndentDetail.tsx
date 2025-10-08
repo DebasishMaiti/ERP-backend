@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,6 @@ import {
   AlertTriangle, Clock, Package, FileText, MessageSquare,
   Plus, Trash2, ShoppingCart
 } from "lucide-react";
-import mockData from "@/data/mockData.json";
 
 // Mock current user - in real app this would come from auth context
 const currentUser = {
@@ -32,33 +31,112 @@ const currentUser = {
   }
 };
 
+interface BoQ {
+  id: string;
+  boqId: string;
+  title: string;
+  projectId: string;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  itemCount: number;
+  totalValue: number;
+  items: Array<{
+    name: string;
+    unit: string;
+    quantity: number;
+    selectedVendor?: string;
+    purchaserReason?: string;
+    isLowest?: boolean;
+  }>;
+  exceptions?: {
+    nonLowest: number;
+    missingReason: number;
+  };
+  submittedBy?: string;
+  submittedOn?: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+}
+
+interface PurchaseOrder {
+  id: string;
+  boqId: string;
+  vendor: string;
+  vendorId: string;
+  items: Array<any>;
+  status: string;
+  orderDate: string;
+}
+
 export default function BoQDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   
-  // Find the BoQ
-  const boq = mockData.boqs.find(b => b.id === id);
-  const project = mockData.projects.find(p => p.id === boq?.project);
-  
-  // Get related POs for approved BoQs
-  const relatedPOs = useMemo(() => {
-    if (boq?.status !== "Approved") return [];
-    return mockData.purchaseOrders.filter(po => po.boqId === boq.id);
-  }, [boq?.id, boq?.status]);
-
+  const [boq, setBoq] = useState<BoQ | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [relatedPOs, setRelatedPOs] = useState<PurchaseOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState("");
-  
-  if (!boq) {
+
+  useEffect(() => {
+    const fetchBoQData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`http://localhost:8000/api/indent/${id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch indent details');
+        }
+        const data = await response.json();
+
+        setBoq(data);
+ 
+      } catch (err) {
+        setError('Error fetching indent details');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchBoQData();
+    }
+  }, [id]);
+
+  const memoizedPOs = useMemo(() => {
+    if (boq?.status !== "Approved") return [];
+    return relatedPOs.filter(po => po.boqId === boq.id);
+  }, [boq?.id, boq?.status, relatedPOs]);
+
+  if (loading) {
     return (
       <div className="container mx-auto px-4 py-6">
         <Card>
           <CardContent className="p-6 text-center">
-            <h2 className="text-xl font-semibold mb-2">BoQ Not Found</h2>
-            <p className="text-muted-foreground mb-4">The requested BoQ could not be found.</p>
+            <h2 className="text-xl font-semibold mb-2">Loading...</h2>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error || !boq) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <h2 className="text-xl font-semibold mb-2">Indent Not Found</h2>
+            <p className="text-muted-foreground mb-4">{error || "The requested Indent could not be found."}</p>
             <Button onClick={() => navigate("/indent/list")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to BoQ List
+              Back to Indent List
             </Button>
           </CardContent>
         </Card>
@@ -82,7 +160,6 @@ export default function BoQDetail() {
       case "Under Review": return <Clock className="h-4 w-4" />;
       case "Compare Pending": return <Eye className="h-4 w-4" />;
       case "Draft": return <Edit className="h-4 w-4" />;
-      // default: return <AlertTriangle className="h-4 w-4" />;
     }
   };
 
@@ -96,14 +173,12 @@ export default function BoQDetail() {
     const baseColumns = ["item", "unit", "quantity"];
     
     if (currentUser.role === "Employee") {
-      // Ops only see basic columns
       if (boq.status === "Approved") {
         return [...baseColumns, "notes"];
       }
       return [...baseColumns, "notes"];
     }
     
-    // Purchaser, Admin, Accountant see more based on stage
     if (boq.status === "Draft") {
       return [...baseColumns, "notes"];
     }
@@ -183,7 +258,6 @@ export default function BoQDetail() {
         break;
         
       case "Approved":
-        // No edit actions, just view
         break;
     }
     
@@ -194,7 +268,6 @@ export default function BoQDetail() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-
       <div className="space-y-6">
         {/* Header & Meta */}
         <Card>
@@ -203,7 +276,7 @@ export default function BoQDetail() {
               <div className="flex items-center gap-3">
                 {getStatusIcon(boq.status)}
                 <div>
-                  <CardTitle className="text-xl">{boq.number}</CardTitle>
+                  <CardTitle className="text-xl">{boq.boqId}</CardTitle>
                   <p className="text-muted-foreground">{boq.title}</p>
                 </div>
               </div>
@@ -218,24 +291,24 @@ export default function BoQDetail() {
                 <span className="text-sm text-muted-foreground">Project</span>
                 <div className="font-medium cursor-pointer text-primary hover:underline" 
                      onClick={() => navigate(`/team/projects/${project?.id}`)}>
-                  {project?.name || boq.project}
+                  {project?.name || boq.projectId}
                 </div>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Created By</span>
                 <div className="font-medium">{boq.createdBy}</div>
-                <div className="text-sm text-muted-foreground">{new Date(boq.createdOn).toLocaleDateString()}</div>
+                <div className="text-sm text-muted-foreground">{new Date(boq.createdAt).toLocaleDateString()}</div>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Last Updated</span>
-                <div className="font-medium">{new Date(boq.lastUpdate).toLocaleDateString()}</div>
+                <div className="font-medium">{new Date(boq.updatedAt).toLocaleDateString()}</div>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Items</span>
                 <div className="font-medium">{boq.itemCount} items</div>
-                {currentUser.permissions.canViewPrices && (
-                  <div className="text-sm font-semibold text-primary">₹{boq.totalValue.toLocaleString()}</div>
-                )}
+                {/* {currentUser.permissions.canViewPrices && (
+                  <div className="text-sm font-semibold text-primary">₹{boq.totalValue.toLocaleString()||0}</div>
+                )} */}
               </div>
             </div>
           </CardContent>
@@ -246,7 +319,6 @@ export default function BoQDetail() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                {/* <AlertTriangle className="h-5 w-5" /> */}
                 Exception Summary
               </CardTitle>
             </CardHeader>
@@ -267,13 +339,11 @@ export default function BoQDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {/* <Package className="h-5 w-5" /> */}
               Line Items
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isMobile ? (
-              // Mobile card view
               <div className="space-y-4">
                 {boq.items?.map((item, index) => (
                   <Card key={index} className="border">
@@ -312,7 +382,6 @@ export default function BoQDetail() {
                 ))}
               </div>
             ) : (
-              // Desktop table view
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -323,7 +392,6 @@ export default function BoQDetail() {
                     {visibleColumns.includes("selectedVendor") && <TableHead>Selected Vendor</TableHead>}
                     {visibleColumns.includes("pricePerUnit") && currentUser.permissions.canViewPrices && <TableHead>Price/Unit</TableHead>}
                     {visibleColumns.includes("extendedCost") && currentUser.permissions.canViewPrices && <TableHead>Extended Cost</TableHead>}
-                    
                     {visibleColumns.includes("exceptions") && <TableHead>Exceptions</TableHead>}
                     {visibleColumns.includes("purchaserReason") && <TableHead>Purchaser Reason</TableHead>}
                     {visibleColumns.includes("notes") && <TableHead>Notes</TableHead>}
@@ -391,7 +459,7 @@ export default function BoQDetail() {
         </Card>
 
         {/* POs under this BoQ (after approval) */}
-        {boq.status === "Approved" && relatedPOs.length > 0 && (
+        {boq.status === "Approved" && memoizedPOs.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -402,7 +470,7 @@ export default function BoQDetail() {
             <CardContent>
               {isMobile ? (
                 <div className="space-y-4">
-                  {relatedPOs.map((po) => (
+                  {memoizedPOs.map((po) => (
                     <Card key={po.id} className="border">
                       <CardContent className="p-4">
                         <div className="space-y-2">
@@ -456,7 +524,7 @@ export default function BoQDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {relatedPOs.map((po) => (
+                    {memoizedPOs.map((po) => (
                       <TableRow key={po.id}>
                         <TableCell className="font-medium">{po.id}</TableCell>
                         <TableCell>
@@ -504,19 +572,17 @@ export default function BoQDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {/* <MessageSquare className="h-5 w-5" /> */}
               Activity & Comments
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {/* Activity Timeline */}
               <div className="space-y-3">
                 <div className="flex items-start gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-primary mt-2"></div>
                   <div>
                     <div className="font-medium">BoQ Created</div>
-                    <div className="text-muted-foreground">by {boq.createdBy} on {new Date(boq.createdOn).toLocaleDateString()}</div>
+                    <div className="text-muted-foreground">by {boq.createdBy} on {new Date(boq.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
                 {boq.submittedBy && (
@@ -524,7 +590,7 @@ export default function BoQDetail() {
                     <div className="w-2 h-2 rounded-full bg-secondary mt-2"></div>
                     <div>
                       <div className="font-medium">Sent for Review</div>
-                      <div className="text-muted-foreground">by {boq.submittedBy} on {new Date(boq.submittedOn || boq.lastUpdate).toLocaleDateString()}</div>
+                      <div className="text-muted-foreground">by {boq.submittedBy} on {new Date(boq.submittedOn || boq.updatedAt).toLocaleDateString()}</div>
                     </div>
                   </div>
                 )}
@@ -533,15 +599,12 @@ export default function BoQDetail() {
                     <div className="w-2 h-2 rounded-full bg-green-600 mt-2"></div>
                     <div>
                       <div className="font-medium">Approved & POs Generated</div>
-                      <div className="text-muted-foreground">by Admin on {new Date(boq.lastUpdate).toLocaleDateString()}</div>
+                      <div className="text-muted-foreground">by Admin on {new Date(boq.updatedAt).toLocaleDateString()}</div>
                     </div>
                   </div>
                 )}
               </div>
-
               <Separator />
-
-              {/* Add Comment */}
               <div className="space-y-3">
                 <label className="text-sm font-medium">Add Comment</label>
                 <Textarea

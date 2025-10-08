@@ -135,13 +135,13 @@ export default function VendorList() {
     );
   }
 
-  // Calculate stats for each vendor
+ 
   const vendorsWithStats = useMemo(() => {
     return vendors.map(vendor => {
-      // Calculate items supplied
+     
       const itemsSupplied = mockData.items.filter(item => item.vendors.some(v => v.vendor === vendor.name)).length;
 
-      // Calculate PO stats
+ 
       const vendorPOs = mockData.purchaseOrders.filter(po => po.vendor === vendor.name);
       const totalPOs = vendorPOs.length;
       const openPOs = vendorPOs.filter(po => po.status === "Open" || po.status === "Partial").length;

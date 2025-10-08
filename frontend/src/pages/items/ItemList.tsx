@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect,useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-
+import { useSelector, useDispatch } from "react-redux";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,16 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Edit, Eye, Search, Filter, RotateCcw } from "lucide-react";
-import { AppDispatch } from "@/store/store";
-import { UseDispatch } from "react-redux";
-import { service } from "@/shared/_services/api_service";
+import { RootState, AppDispatch } from "@/store/store";
+import { getItemList } from "@/store/ItemSlice";
 
 // Mock current user role - in real app this would come from auth context
 const currentUser = {
   id: "TM-002",
   name: "Jane Smith",
   role: "Purchaser",
-  // Employee, Purchaser, Admin, Accountant
   permissions: {
     canCreateBoQ: false,
     canRecordGRN: false,
@@ -36,10 +33,11 @@ const currentUser = {
 export default function ItemList() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const dispatch = useDispatch<AppDispatch>();
 
-  // API state
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Redux state
+  const items = useSelector((state: RootState) => state.item.items);
+  const loading = useSelector((state: RootState) => state.loader.isLoading);
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,20 +51,10 @@ export default function ItemList() {
   // For Employee role - hide pricing and vendor details
   const isEmployee = currentUser.role === "Employee";
 
-  // Fetch items from API
+  // Fetch items using Redux thunk
   useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        const res = await service.getAllItem();
-        setItems(res.data);
-      } catch (err) {
-        console.error("Error fetching items:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchItems();
-  }, []);
+    dispatch(getItemList());
+  }, [dispatch]);
 
   const handleCreateItem = () => {
     navigate("/items/create");
@@ -181,8 +169,6 @@ export default function ItemList() {
               </Button>
             </div>
           )}
-
- 
         </div>
 
         {filteredItems.length === 0 ? (
@@ -337,7 +323,7 @@ export default function ItemList() {
                             Edit
                           </Button>
                         ) : (
-                          <Button size="sm" variant="outline" onClick={() => handleViewItem(item._id)}>
+                          <Button size="sm" variant="outline" onClick={() => handleViewItem(item.itemId)}>
                             <Eye className="h-3 w-3 mr-1" />
                             View
                           </Button>

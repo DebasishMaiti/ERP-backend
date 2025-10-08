@@ -14,7 +14,7 @@ import {
 
 export const createIndentController = async (req: Request, res: Response) => {
   try {
-    const { project, boq, title, location, neededBy, requester, notes, items, status,comment } = req.body;
+    const { project, boq, boqId, projectId, title, location, neededBy, requester, notes, items, status,comment } = req.body;
 
     if (!project || !boq || !title || !location || !neededBy || !requester || !items?.length || !status) {
       return res.status(400).json({ message: "Please fill all the fields" });
@@ -29,7 +29,7 @@ export const createIndentController = async (req: Request, res: Response) => {
       }
     }
 
-    const result = await createIndent(project, boq, title, location, neededBy, requester, notes, items, status, comment);
+    const result = await createIndent(project, boq, boqId, projectId,title, location, neededBy, requester, notes, items, status, comment);
     res.status(201).json(result);
   } catch (err: any) {
     res.status(500).json({ message: err.message });

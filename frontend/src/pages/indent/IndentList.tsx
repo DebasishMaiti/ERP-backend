@@ -54,16 +54,12 @@ export default function BoQList() {
         }
         
         const data = await response.json();
-        
-        // Assuming the API returns an array of indents/boqs
-        // You might need to adjust this mapping based on your actual API response structure
-        setBoqs(data.indents || data || []);
-        
-        // Extract unique projects from the boqs data
-        // If you have a separate projects API, you can call it here instead
+ 
+        setBoqs(data || []);
+      
         const uniqueProjects = [...new Set((data.indents || data || []).map(boq => boq.project))].map(projectId => ({
           id: projectId,
-          name: projectId // You might want to fetch actual project names from another API
+          name: projectId  
         }));
         
         setProjects(uniqueProjects);
@@ -178,7 +174,7 @@ export default function BoQList() {
           key="view" 
           size="sm" 
           variant="outline"
-          onClick={() => navigate(`/indent/${boq.id}`)}
+          onClick={() => navigate(`/indent/${boq._id}`)}
         >
           View
         </Button>
@@ -374,18 +370,18 @@ export default function BoQList() {
             <div className="bg-card rounded-lg p-8 shadow-card">
               {boqs.length === 0 ? (
                 <>
-                  <h3 className="text-lg font-semibold mb-2">No BoQs yet</h3>
-                  <p className="text-muted-foreground mb-4">Create your first BoQ to get started</p>
+                  <h3 className="text-lg font-semibold mb-2">No Indents yet</h3>
+                  <p className="text-muted-foreground mb-4">Create your first Indent to get started</p>
                   {currentUser.permissions.canCreateBoQ && (
-                    <Button>
+                    <Button onClick={()=>navigate('/indent/create')}>
                       <Plus className="h-4 w-4 mr-2" />
-                      New BoQ
+                      New Indent
                     </Button>
                   )}
                 </>
               ) : (
                 <>
-                  <h3 className="text-lg font-semibold mb-2">No BoQs match these filters</h3>
+                  <h3 className="text-lg font-semibold mb-2">No Indent match these filters</h3>
                   <p className="text-muted-foreground mb-4">Try adjusting your search or filters</p>
                   <Button variant="outline" onClick={clearFilters}>
                     Clear Filters
@@ -400,11 +396,11 @@ export default function BoQList() {
             {isMobile ? (
               <div className="space-y-2">
                 {paginatedBoqs.map((boq) => (
-                  <Card key={boq.id}>
+                  <Card key={boq._id}>
                     <CardHeader className="p-3 pb-2">
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle className="text-base">{boq.number || "N/A"}</CardTitle>
+                          <CardTitle className="text-base">{boq.boqId || "N/A"}</CardTitle>
                           <p className="text-xs text-muted-foreground">{boq.title || "No title"}</p>
                         </div>
                         <Badge variant={getStatusVariant(boq.status)} className="text-xs">
@@ -416,7 +412,7 @@ export default function BoQList() {
                         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <div>
                             <span className="text-muted-foreground">Project:</span>
-                            <div className="font-medium">{projectMap.get(boq.project) || boq.project || "N/A"}</div>
+                            <div className="font-medium">{  boq.projectId || "N/A"}</div>
                           </div>
                          <div>
                            <span className="text-muted-foreground">Items:</span>
@@ -429,7 +425,7 @@ export default function BoQList() {
                          <div>
                            <span className="text-muted-foreground">Created:</span>
                            <div className="font-medium">
-                             {boq.createdOn || boq.createdAt ? new Date(boq.createdOn || boq.createdAt).toLocaleDateString() : "N/A"}
+                             {boq.createdAt ? new Date(boq.createdOn || boq.createdAt).toLocaleDateString() : "N/A"}
                            </div>
                          </div>
                        </div>
@@ -474,10 +470,10 @@ export default function BoQList() {
                    </TableHeader>
                   <TableBody>
                     {paginatedBoqs.map((boq) => (
-                      <TableRow key={boq.id}>
+                      <TableRow key={boq._id}>
                          <TableCell>
                            <div>
-                             <div className="font-medium">{boq.number || "N/A"}</div>
+                             <div className="font-medium">{boq.boqId || "N/A"}</div>
                              <div className="text-sm text-muted-foreground">{boq.title || "No title"}</div>
                              {currentUser.permissions.canViewPrices && (
                                <div className="text-sm font-medium text-primary">
@@ -488,7 +484,7 @@ export default function BoQList() {
                          </TableCell>
                           <TableCell>
                             <span className="font-medium text-sm">
-                              {projectMap.get(boq.project) || boq.project || "N/A"}
+                              {boq.projectId || "N/A"}
                             </span>
                           </TableCell>
                          <TableCell>

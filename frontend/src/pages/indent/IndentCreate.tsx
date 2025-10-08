@@ -42,16 +42,16 @@ interface IndentLineItem {
 
 interface Project {
   _id: string;
+  projectCode: string; // Manually created ID (e.g., "PROJ-001")
   name: string;
   // Add other project fields as needed
 }
 
 interface BOQ {
   _id: string;
-  name:string;
+  boqId: string; // Manually created ID (e.g., "BQ-001")
+  name: string;
   project: string;
-  number: string;
-  title: string;
   status: string;
   // Add other BOQ fields as needed
 }
@@ -91,15 +91,17 @@ export default function IndentCreate() {
   const autoSelectProject = availableProjects.length === 1 ? availableProjects[0] : null;
 
   // Get BOQs for selected project
-  const getAvailableBOQs = (projectId: string) => {
-    return boqs.filter(boq => boq.project === projectId && boq.status === "Confirmed");
+  const getAvailableBOQs = (projectMongoId: string) => {
+    return boqs.filter(boq => boq.project === projectMongoId && boq.status === "confirmed");
   };
 
   // Form state
   const [indentData, setIndentData] = useState({
     title: "",
-    projectId: autoSelectProject?._id || "",
+    projectId: autoSelectProject?.projectCode || "", // Use projectCode
+    projectMongoId: autoSelectProject?._id || "", // Store MongoDB _id
     boqId: "",
+    boqMongoId: "", // Store MongoDB _id for BOQ
     location: "",
     neededBy: "",
     requester: currentUser.name,
@@ -114,7 +116,7 @@ export default function IndentCreate() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Get available BOQs based on selected project
-  const availableBOQs = indentData.projectId ? getAvailableBOQs(indentData.projectId) : [];
+  const availableBOQs = indentData.projectMongoId ? getAvailableBOQs(indentData.projectMongoId) : [];
 
   // Filtered items for search
   const filteredItems = items.filter(item =>
@@ -129,13 +131,13 @@ export default function IndentCreate() {
 
   // Fetch BOQs when project changes
   useEffect(() => {
-    if (indentData.projectId) {
-      fetchBOQsByProject(indentData.projectId);
+    if (indentData.projectMongoId) {
+      fetchBOQsByProject(indentData.projectMongoId);
     } else {
       setBoqs([]);
-      setIndentData(prev => ({ ...prev, boqId: "" }));
+      setIndentData(prev => ({ ...prev, boqId: "", boqMongoId: "" }));
     }
-  }, [indentData.projectId]);
+  }, [indentData.projectMongoId]);
 
   const fetchProjects = async () => {
     try {
@@ -145,7 +147,11 @@ export default function IndentCreate() {
       
       // Auto-select if only one project is available
       if (response.data.length === 1) {
-        setIndentData(prev => ({ ...prev, projectId: response.data[0]._id }));
+        setIndentData(prev => ({
+          ...prev,
+          projectId: response.data[0].projectCode, // Use projectCode
+          projectMongoId: response.data[0]._id // Use MongoDB _id
+        }));
       }
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -155,15 +161,15 @@ export default function IndentCreate() {
     }
   };
 
-  const fetchBOQsByProject = async (projectId: string) => {
+  const fetchBOQsByProject = async (projectMongoId: string) => {
     try {
       setApiLoading(prev => ({ ...prev, boqs: true }));
-      const response = await axios.get(`http://localhost:8000/api/boq/project/${projectId}`, {
-  headers: {
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-  }
-});
+      const response = await axios.get(`http://localhost:8000/api/boq/project/${projectMongoId}`, {
+        headers: {
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        }
+      });
       setBoqs(response.data);
     } catch (error) {
       console.error('Error fetching BOQs:', error);
@@ -223,13 +229,22 @@ export default function IndentCreate() {
       
       // If project changes, reset BOQ selection
       if (field === "projectId") {
+        const selectedProject = projects.find(p => p.projectCode === value);
+        updated.projectMongoId = selectedProject?._id || "";
         updated.boqId = "";
+        updated.boqMongoId = "";
+      }
+      
+      // If BOQ changes, update boqMongoId
+      if (field === "boqId") {
+        const selectedBoq = boqs.find(b => b.boqId === value);
+        updated.boqMongoId = selectedBoq?._id || "";
       }
       
       return updated;
     });
     setHasUnsavedChanges(true);
-  }, []);
+  }, [projects, boqs]);
 
   const addItem = useCallback((item: Item) => {
     const newItem: IndentLineItem = {
@@ -306,24 +321,28 @@ export default function IndentCreate() {
     try {
       setApiLoading(prev => ({ ...prev, save: true }));
       
-      // Prepare items for API
+     
       const apiItems = lineItems.map(item => ({
         itemId: item.itemId,
+        itemName: item.itemName, 
+        unit: item.unit,  
         quantity: Number(item.quantity),
         remarks: item.remark
       }));
 
       const indentPayload = {
         title: indentData.title,
-        project: indentData.projectId,
-        boq: indentData.boqId,
+        project: indentData.projectMongoId, 
+        boq: indentData.boqMongoId, 
+        projectId: indentData.projectId,
+        boqId: indentData.boqId, 
         location: indentData.location,
         neededBy: indentData.neededBy ? new Date(indentData.neededBy).toISOString() : new Date().toISOString(),
         requester: indentData.requester,
         notes: indentData.notes,
         items: apiItems,
         status: status,
-        comment: "" // Add comment if needed
+        comment: ""
       };
 
       const response = await axios.post('http://localhost:8000/api/indent', indentPayload);
@@ -392,8 +411,8 @@ export default function IndentCreate() {
                   </SelectTrigger>
                   <SelectContent>
                     {projects.map(project => (
-                      <SelectItem key={project._id} value={project._id}>
-                        {project.name}
+                      <SelectItem key={project._id} value={project.projectCode}>
+                        {project.name} ({project.projectCode})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -420,8 +439,8 @@ export default function IndentCreate() {
                   </SelectTrigger>
                   <SelectContent>
                     {boqs.map(boq => (
-                      <SelectItem key={boq._id} value={boq._id}>
-                         {boq.name}
+                      <SelectItem key={boq._id} value={boq.boqId}>
+                        {boq.name} ({boq.boqId})
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -30,6 +30,7 @@ import axios from "axios";
 interface EstimateItem {
   id: string;
   itemId: string;
+  itemName?: string;
   plannedQuantity: number;
   unit: string;
   rate?: number;
@@ -94,6 +95,7 @@ export default function BOQCreate() {
       status: "draft",
       items: estimateItems.map(item => ({
         item: item.itemId,
+        itemName: item.itemName,
         plannedQty: item.plannedQuantity,
         unit: item.unit,
         rate: item.rate || null
@@ -123,6 +125,7 @@ const handleSendAndConfirm = async () => {
       status: "confirmed",
       items: estimateItems.map(item => ({
         item: item.itemId,
+        itemName: item.itemName,
         plannedQty: item.plannedQuantity,
         unit: item.unit,
         rate: item.rate || null
@@ -151,6 +154,7 @@ const updateEstimateItem = (id: string, field: keyof EstimateItem, value: any) =
         const selectedItem = mockItems.find((i: any) => i._id === value); // <-- FIX HERE
         if (selectedItem) {
           updatedItem.unit = selectedItem.unit;
+          updatedItem.itemName = selectedItem.name;
         }
       }
 

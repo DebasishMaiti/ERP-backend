@@ -7,6 +7,8 @@ const IndentSchema = new Schema(
     title: { type: String, required: true, trim: true },
     project: { type: Schema.Types.ObjectId, ref: "Project", required: true },
     boq: { type: Schema.Types.ObjectId, ref: "Boq", required: true },
+    boqId:{type:String,required: true},
+    projectId:{type:String,required: true},
     location: { type: String, required: true, trim: true },
     neededBy: { type: Date, required: true },
     requester: { type: String, required: true, trim: true },
@@ -15,6 +17,8 @@ const IndentSchema = new Schema(
     items: [
       {
         itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
+        ItemName:{type:String},
+        unit:{type:String},
         quantity: { type: Number, required: true, min: 1 },
         remarks: { type: String, trim: true },
 

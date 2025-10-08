@@ -34,8 +34,7 @@ export const vendorSlice = createSlice({
         state.vendors[index] = payload;
       }
       state.successMessage = "Vendor updated successfully!";
-    },
- 
+    }
   }
 });
 

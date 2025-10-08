@@ -3,6 +3,8 @@ import Indent from "./Indent.Model";
 export const createIndent = async (
   project: string,
   boq: string,
+  boqId:string,
+  projectId:string,
   title: string,
   location: string,
   neededBy: Date,
@@ -15,6 +17,8 @@ export const createIndent = async (
   const result = await Indent.create({
     project,
     boq,
+    boqId,
+    projectId,
     title,
     location,
     neededBy,

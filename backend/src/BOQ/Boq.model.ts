@@ -23,6 +23,7 @@ const BoqSchema = new Schema(
           ref: "Item",
           required: true,
         },
+        itemName:{type:String, required: true },
         plannedQty: { type: Number, required: true },
         unit: { type: String, required: true },
         rate: { type: Number },

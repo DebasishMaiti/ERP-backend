@@ -91,8 +91,8 @@ async function getPoById(id){
     return await axios.get(poUrl+`/${id}`)
 }
 
-async function updatePo(id){
-    return await axios.get(poUrl+`/${id}`)
+async function updatePo(id,data){
+    return await axios.get(poUrl+`/${id}`,data)
 }
 
 async function deletePo(id){
