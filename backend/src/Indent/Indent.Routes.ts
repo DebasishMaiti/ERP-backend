@@ -8,6 +8,7 @@ import {
   geApprovedIndentsController,
   getIndentByIdController,
   updateIndentController,
+  addVendorController,
   deleteIndentController,
 } from "./Indent.controller";
 
@@ -20,8 +21,9 @@ router.get("/compare", getCompareIndentsController);
 router.get("/approval", geApprovalIndentsController);
 router.get("/approved", geApprovedIndentsController);
 router.get("/:id", getIndentByIdController);
-router.put("/:id", updateIndentController);
-router.patch("/:id", deleteIndentController);
+router.patch("/:id", updateIndentController);
+router.patch("/add-vendor",addVendorController);
+router.patch("/delete/:id", deleteIndentController);
 
 
 export default router;

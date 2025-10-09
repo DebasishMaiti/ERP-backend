@@ -157,13 +157,13 @@ export default function BoQList() {
   const getNextStepActions = (boq: any) => {
     const baseActions = [];
     
-    if (boq.status === "Draft" && currentUser.permissions.canCreateBoQ) {
+    if (boq.status === "draft" && currentUser.permissions.canCreateBoQ) {
       baseActions.push(
         <Button 
           key="open" 
           size="sm" 
           variant="outline"
-          onClick={() => navigate(`/indent/edit/${boq.id}`)}
+          onClick={() => navigate(`/indent/edit/${boq._id}`)}
         >
           Open
         </Button>

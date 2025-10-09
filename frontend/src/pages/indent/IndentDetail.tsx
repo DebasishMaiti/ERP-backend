@@ -1,5 +1,8 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { toast } from "react-hot-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,18 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   ArrowLeft, Eye, Edit, Send, CheckCircle, XCircle, 
   AlertTriangle, Clock, Package, FileText, MessageSquare,
-  Plus, Trash2, ShoppingCart
+  Plus, Trash2, ShoppingCart, Save
 } from "lucide-react";
 
 // Mock current user - in real app this would come from auth context
 const currentUser = {
   id: "USR-001",
   name: "John Doe",
-  role: "Purchaser", // Employee, Purchaser, Admin, Accountant
+  role: "Employee", // Employee, Purchaser, Admin, Accountant
   permissions: {
     canCreateBoQ: true,
     canEditBoQ: true,
@@ -43,7 +47,7 @@ interface BoQ {
   itemCount: number;
   totalValue: number;
   items: Array<{
-    name: string;
+    itemName: string;
     unit: string;
     quantity: number;
     selectedVendor?: string;
@@ -84,22 +88,24 @@ export default function BoQDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState("");
+  const [editingItem, setEditingItem] = useState<number | null>(null);
+  const [editedItems, setEditedItems] = useState<BoQ['items']>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const fetchBoQData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:8000/api/indent/${id}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch indent details');
+        const response = await axios.get(`http://localhost:8000/api/indent/${id}`);
+        if (!response.data || typeof response.data !== 'object') {
+          throw new Error('Invalid response data');
         }
-        const data = await response.json();
-
-        setBoq(data);
- 
+        console.log('Fetched BoQ:', response.data); // Debug log
+        setBoq(response.data);
+        setEditedItems(response.data.items || []);
       } catch (err) {
+        console.error('Fetch error:', err);
         setError('Error fetching indent details');
-        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -114,6 +120,95 @@ export default function BoQDetail() {
     if (boq?.status !== "Approved") return [];
     return relatedPOs.filter(po => po.boqId === boq.id);
   }, [boq?.id, boq?.status, relatedPOs]);
+
+  const validateItems = (items: BoQ['items']) => {
+    return items.every(item => 
+      item.itemName && 
+      item.unit && 
+      item.quantity >= 0
+    );
+  };
+
+  const handleSaveDraft = () => {
+    if (!validateItems(editedItems)) {
+      toast.error('Please fill in all required item fields (name, unit, quantity)');
+      return;
+    }
+
+    setBoq(prev => {
+      if (!prev) return prev;
+      const updatedBoq = {
+        ...prev,
+        items: [...editedItems],
+        itemCount: editedItems.length,
+        updatedAt: new Date().toISOString()
+      };
+      console.log('Saved draft locally:', updatedBoq); // Debug log
+      toast.success('Draft saved locally');
+      return updatedBoq;
+    });
+    setEditingItem(null);
+  };
+
+  const handleSendToCompare = async () => {
+    if (!validateItems(editedItems)) {
+      toast.error('Please fill in all required item fields (name, unit, quantity)');
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const payload = {
+        status: 'Compare Pending',
+        items: editedItems,
+        itemCount: editedItems.length,
+        updatedAt: new Date().toISOString(),
+        submittedBy: currentUser.name,
+        submittedOn: new Date().toISOString()
+      };
+      console.log('Sending PATCH payload:', payload); // Debug log
+      const response = await axios.patch(`http://localhost:8000/api/indent/${id}`, payload);
+      
+      if (!response.data || typeof response.data !== 'object') {
+        throw new Error('Invalid response data from PATCH');
+      }
+
+      console.log('PATCH response:', response.data); // Debug log
+      setBoq(response.data);
+      setEditedItems(response.data.items || []);
+      toast.success('Indent sent to Compare');
+    } catch (err: any) {
+      console.error('PATCH error:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Error updating indent';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsUpdating(false);
+      setEditingItem(null);
+    }
+  };
+
+  const handleItemEdit = (index: number, field: string, value: string | number) => {
+    setEditedItems(prev => {
+      const newItems = [...prev];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return newItems;
+    });
+  };
+
+  const handleAddItem = () => {
+    setEditedItems(prev => [...prev, {
+      itemName: '',
+      unit: '',
+      quantity: 0
+    }]);
+    toast.success('New item added');
+  };
+
+  const handleDeleteItem = (index: number) => {
+    setEditedItems(prev => prev.filter((_, i) => i !== index));
+    toast.success('Item deleted');
+  };
 
   if (loading) {
     return (
@@ -201,15 +296,21 @@ export default function BoQDetail() {
       case "Draft":
         if (currentUser.role === "Employee" && currentUser.permissions.canEditBoQ) {
           actions.push(
-            <Button key="add-item" variant="outline" size="sm">
+            <Button key="add-item" variant="outline" size="sm" onClick={handleAddItem} disabled={isUpdating}>
               <Plus className="h-4 w-4 mr-2" />
               Add Item
             </Button>
           );
           actions.push(
-            <Button key="send-purchaser">
+            <Button key="save-draft" variant="outline" size="sm" onClick={handleSaveDraft} disabled={isUpdating}>
+              <Save className="h-4 w-4 mr-2" />
+              Save Draft
+            </Button>
+          );
+          actions.push(
+            <Button key="send-purchaser" onClick={handleSendToCompare} disabled={isUpdating}>
               <Send className="h-4 w-4 mr-2" />
-              Send to Purchaser
+              Send to Compare
             </Button>
           );
         }
@@ -284,6 +385,9 @@ export default function BoQDetail() {
                 {boq.status}
               </Badge>
             </div>
+            <div className="flex gap-2 mt-4">
+              {getActionButtons()}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -306,9 +410,6 @@ export default function BoQDetail() {
               <div>
                 <span className="text-sm text-muted-foreground">Items</span>
                 <div className="font-medium">{boq.itemCount} items</div>
-                {/* {currentUser.permissions.canViewPrices && (
-                  <div className="text-sm font-semibold text-primary">₹{boq.totalValue.toLocaleString()||0}</div>
-                )} */}
               </div>
             </div>
           </CardContent>
@@ -345,37 +446,90 @@ export default function BoQDetail() {
           <CardContent>
             {isMobile ? (
               <div className="space-y-4">
-                {boq.items?.map((item, index) => (
+                {editedItems?.map((item, index) => (
                   <Card key={index} className="border">
                     <CardContent className="p-4">
                       <div className="space-y-2">
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {item.quantity} {item.unit}
-                        </div>
-                        {visibleColumns.includes("selectedVendor") && item.selectedVendor && (
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Vendor: </span>
-                            {currentUser.permissions.canViewVendors ? item.selectedVendor : "***"}
-                          </div>
+                        {editingItem === index ? (
+                          <>
+                            <Input
+                              type="text"
+                              value={item.itemName}
+                              onChange={(e) => handleItemEdit(index, 'itemName', e.target.value)}
+                              placeholder="Item name"
+                            />
+                            <Input
+                              type="text"
+                              value={item.unit}
+                              onChange={(e) => handleItemEdit(index, 'unit', e.target.value)}
+                              placeholder="Unit"
+                            />
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleItemEdit(index, 'quantity', parseFloat(e.target.value))}
+                              placeholder="Quantity"
+                              min="0"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => setEditingItem(null)}
+                              disabled={isUpdating || !item.itemName || !item.unit || item.quantity < 0}
+                            >
+                              Save
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="font-medium">{item.itemName || 'Unnamed Item'}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {item.quantity} {item.unit || 'N/A'}
+                            </div>
+                            {visibleColumns.includes("selectedVendor") && item.selectedVendor && (
+                              <div className="text-sm">
+                                <span className="text-muted-foreground">Vendor: </span>
+                                {currentUser.permissions.canViewVendors ? item.selectedVendor : "***"}
+                              </div>
+                            )}
+                            {visibleColumns.includes("pricePerUnit") && currentUser.permissions.canViewPrices && (
+                              <div className="text-sm">
+                                <span className="text-muted-foreground">Price: </span>
+                                ₹{(item.quantity * 100).toLocaleString()}
+                              </div>
+                            )}
+                            {item.purchaserReason && (
+                              <div className="text-sm">
+                                <span className="text-muted-foreground">Reason: </span>
+                                {item.purchaserReason}
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              {!item.isLowest && (
+                                <Badge variant="destructive" className="text-xs">Non-lowest</Badge>
+                              )}
+                            </div>
+                            {canEdit() && (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setEditingItem(index)}
+                                  disabled={isUpdating}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteItem(index)}
+                                  disabled={isUpdating}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </>
                         )}
-                        {visibleColumns.includes("pricePerUnit") && currentUser.permissions.canViewPrices && (
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Price: </span>
-                            ₹{(item.quantity * 100).toLocaleString()}
-                          </div>
-                        )}
-                        {item.purchaserReason && (
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Reason: </span>
-                            {item.purchaserReason}
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          {!item.isLowest && (
-                            <Badge variant="destructive" className="text-xs">Non-lowest</Badge>
-                          )}
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -399,11 +553,45 @@ export default function BoQDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {boq.items?.map((item, index) => (
+                  {editedItems?.map((item, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.unit}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell className="font-medium">
+                        {editingItem === index ? (
+                          <Input
+                            type="text"
+                            value={item.itemName}
+                            onChange={(e) => handleItemEdit(index, 'itemName', e.target.value)}
+                            placeholder="Item name"
+                          />
+                        ) : (
+                          item.itemName || 'Unnamed Item'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {editingItem === index ? (
+                          <Input
+                            type="text"
+                            value={item.unit}
+                            onChange={(e) => handleItemEdit(index, 'unit', e.target.value)}
+                            placeholder="Unit"
+                          />
+                        ) : (
+                          item.unit || 'N/A'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {editingItem === index ? (
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleItemEdit(index, 'quantity', parseFloat(e.target.value))}
+                            placeholder="Quantity"
+                            min="0"
+                          />
+                        ) : (
+                          item.quantity
+                        )}
+                      </TableCell>
                       {visibleColumns.includes("activeVendors") && (
                         <TableCell>
                           <Badge variant="outline">3</Badge>
@@ -441,12 +629,35 @@ export default function BoQDetail() {
                       {canEdit() && (
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="ghost">
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button size="sm" variant="ghost">
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            {editingItem === index ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingItem(null)}
+                                disabled={isUpdating || !item.itemName || !item.unit || item.quantity < 0}
+                              >
+                                Save
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setEditingItem(index)}
+                                  disabled={isUpdating}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteItem(index)}
+                                  disabled={isUpdating}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       )}
@@ -613,7 +824,7 @@ export default function BoQDetail() {
                   onChange={(e) => setComment(e.target.value)}
                   rows={3}
                 />
-                <Button size="sm" disabled={!comment.trim()}>
+                <Button size="sm" disabled={!comment.trim() || isUpdating}>
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Add Comment
                 </Button>

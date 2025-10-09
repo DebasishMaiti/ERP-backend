@@ -82,7 +82,8 @@ interface Indent {
 }
 
 interface VendorOption {
-  vendor: string;
+  vendorId: string; // Added vendor ID
+  vendor: string; // Vendor name
   price: number;
   gstAmount: number;
   totalPrice: number;
@@ -99,7 +100,7 @@ interface BoQItemComparison {
   unit: string;
   quantity: number;
   vendorOptions: VendorOption[];
-  selectedVendor: string | null;
+  selectedVendor: string | null; // Vendor name
   overrideReason: string;
   hasActiveVendors: boolean;
 }
@@ -136,6 +137,7 @@ export default function BoQCompare() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false); // Added for save loading state
   const indentId = searchParams.get("indentId");
 
   // Fetch all indents for queue view
@@ -249,7 +251,8 @@ export default function BoQCompare() {
         const extendedGst = boqItem.quantity * gstAmount;
         const grandTotal = boqItem.quantity * totalPrice;
         return {
-          vendor: vendor.name, // Use vendor.name instead of vendor.vendor (ID)
+          vendorId: vendor.vendor, // Added: Store vendor ID
+          vendor: vendor.name,
           price: vendor.pricePerUnit,
           gstAmount,
           totalPrice,
@@ -431,7 +434,8 @@ export default function BoQCompare() {
 
   const hasValidationErrors = useMemo(() => validateSelections().length > 0, [selections]);
 
-  const saveSelections = useCallback(() => {
+  // Save selections without status
+  const saveSelections = useCallback(async () => {
     const errors = validateSelections();
     if (errors.length > 0) {
       toast({
@@ -441,13 +445,74 @@ export default function BoQCompare() {
       });
       return;
     }
-    toast({
-      title: "Saved",
-      description: "Vendor selections saved successfully",
-    });
-  }, [selections, toast]);
 
-  const proceedToApproval = useCallback(() => {
+    if (!indent?._id) {
+      toast({
+        title: "Error",
+        description: "Indent ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Construct the payload for the API
+      const payloadItems = selections
+        .filter(item => item.selectedVendor && item.hasActiveVendors)
+        .map(item => {
+          const selectedOption = item.vendorOptions.find(v => v.vendor === item.selectedVendor);
+          if (!selectedOption) return null;
+          const fleetData = fleetCosts[item.selectedVendor] || { cost: 0, gst: 0 };
+          return {
+            itemId: item.itemId,
+            vendorId: selectedOption.vendorId,
+            vendorName: selectedOption.vendor,
+            pricePerUnit: selectedOption.price,
+            gstAmount: selectedOption.gstAmount,
+            totalPrice: selectedOption.totalPrice,
+            overrideReason: item.overrideReason || "",
+            fleetCost: fleetData.cost,
+            fleetGst: fleetData.gst, // Include fleet GST
+          };
+        })
+        .filter(Boolean); // Remove any null entries
+
+      if (payloadItems.length === 0) {
+        toast({
+          title: "No Selections",
+          description: "No vendors selected to save",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const payload = {
+        indentId: indent._id,
+        items: payloadItems,
+      };
+
+      // Call the PATCH API
+      await axios.patch('http://localhost:8000/api/indent/add-vendor', payload);
+
+      toast({
+        title: "Saved",
+        description: "Vendor selections saved successfully to the indent",
+      });
+    } catch (err: any) {
+      console.error("Error saving selections:", err);
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "Failed to save vendor selections",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [selections, indent, toast, validateSelections, fleetCosts]);
+
+  // Proceed to approval with status
+  const proceedToApproval = useCallback(async () => {
     const errors = validateSelections();
     if (errors.length > 0) {
       toast({
@@ -457,13 +522,74 @@ export default function BoQCompare() {
       });
       return;
     }
-    toast({
-      title: "Success",
-      description: "BoQ sent to Admin for approval",
-    });
-    setCurrentView("queue");
-    setSearchParams({});
-  }, [selections, toast, setSearchParams]);
+
+    if (!indent?._id) {
+      toast({
+        title: "Error",
+        description: "Indent ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Construct the payload for the API
+      const payloadItems = selections
+        .filter(item => item.selectedVendor && item.hasActiveVendors)
+        .map(item => {
+          const selectedOption = item.vendorOptions.find(v => v.vendor === item.selectedVendor);
+          if (!selectedOption) return null;
+          const fleetData = fleetCosts[item.selectedVendor] || { cost: 0, gst: 0 };
+          return {
+            itemId: item.itemId,
+            vendorId: selectedOption.vendorId,
+            vendorName: selectedOption.vendor,
+            pricePerUnit: selectedOption.price,
+            gstAmount: selectedOption.gstAmount,
+            totalPrice: selectedOption.totalPrice,
+            overrideReason: item.overrideReason || "",
+            fleetCost: fleetData.cost,
+            fleetGst: fleetData.gst, // Include fleet GST
+          };
+        })
+        .filter(Boolean); // Remove any null entries
+
+      if (payloadItems.length === 0) {
+        toast({
+          title: "No Selections",
+          description: "No vendors selected to proceed",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const payload = {
+        indentId: indent._id,
+        items: payloadItems,
+        status: "approval", // Include status for approval
+      };
+
+      // Call the PATCH API
+      await axios.patch('http://localhost:8000/api/indent/add-vendor', payload);
+
+      toast({
+        title: "Success",
+        description: "BoQ sent to Admin for approval",
+      });
+      setCurrentView("queue");
+      setSearchParams({});
+    } catch (err: any) {
+      console.error("Error proceeding to approval:", err);
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "Failed to send for approval",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [selections, indent, toast, setSearchParams, validateSelections, fleetCosts]);
 
   const openCompareDetail = useCallback(
     (indentId: string) => {
@@ -857,9 +983,9 @@ export default function BoQCompare() {
             {isMobile && !isReadOnly && (
               <div className="sticky bottom-20 bg-background p-3 border rounded-lg shadow-lg space-y-2 mx-2">
                 <div className="grid grid-cols-1 gap-2">
-                  <Button variant="outline" onClick={saveSelections} size="sm" disabled={hasValidationErrors}>
+                  <Button variant="outline" onClick={saveSelections} size="sm" disabled={hasValidationErrors || saving}>
                     <Save className="h-4 w-4 mr-2" />
-                    Save Selections
+                    {saving ? "Saving..." : "Save Selections"}
                   </Button>
                   <Button onClick={proceedToApproval} size="sm" disabled={hasValidationErrors}>
                     <Send className="h-4 w-4 mr-2" />
@@ -1056,9 +1182,9 @@ export default function BoQCompare() {
                 )}
                 {!isMobile && !isReadOnly && (
                   <div className="space-y-2 pt-4 border-t">
-                    <Button variant="outline" onClick={saveSelections} className="w-full">
+                    <Button variant="outline" onClick={saveSelections} className="w-full" disabled={saving}>
                       <Save className="h-4 w-4 mr-2" />
-                      Save Selections
+                      {saving ? "Saving..." : "Save Selections"}
                     </Button>
                     <Button onClick={proceedToApproval} className="w-full" disabled={hasValidationErrors}>
                       <Send className="h-4 w-4 mr-2" />

@@ -13,19 +13,20 @@ const IndentSchema = new Schema(
     neededBy: { type: Date, required: true },
     requester: { type: String, required: true, trim: true },
     notes: { type: String, trim: true },
-
     items: [
       {
         itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
-        ItemName:{type:String},
+        itemName:{type:String},
         unit:{type:String},
         quantity: { type: Number, required: true, min: 1 },
         remarks: { type: String, trim: true },
 
         selectedVendor: {
           vendor: { type: Schema.Types.ObjectId, ref: "Vendor" },
+          vendorName:{type:String},
           pricePerUnit: { type: Number, min: 0 },
           gstAmount: { type: Number, min: 0 },
+          fleetCost: {type: Number,default: 0,},
           totalPrice: { type: Number, min: 0 },
           overrideReason: { type: String, trim: true }, 
         },
